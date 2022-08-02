@@ -50,7 +50,7 @@ class AssertionParser(Parser):
 
     @_('FUNC LPAR RPAR')
     def expr(self, p):
-        return "%s()" % p.FUNC
+        return f"{p.FUNC}()"
 
     @_('expr AND expr')
     def expr(self, p):

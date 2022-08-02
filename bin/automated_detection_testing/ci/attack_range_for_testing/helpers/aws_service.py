@@ -8,13 +8,13 @@ import json
 def create_key_pair(region):
     my_config = Config(region_name = region)
     epoch_time = str(int(time.time()))
-    ssh_key_name = 'key-dt-' + epoch_time
+    ssh_key_name = f'key-dt-{epoch_time}'
     ec2 = boto3.client('ec2', config=my_config)
     response = ec2.create_key_pair(KeyName=ssh_key_name)
     with open(ssh_key_name, "w") as ssh_key:
         ssh_key.write(response['KeyMaterial'])
     os.chmod(ssh_key_name, 0o600)
-    private_key_path = str(os.getcwd() + "/" + ssh_key_name)
+    private_key_path = str(f"{os.getcwd()}/{ssh_key_name}")
 
     return ssh_key_name, response['KeyMaterial']
 
@@ -73,10 +73,7 @@ def get_entry_database(region, db_name, name):
             'name': name
         }
     )
-    if 'Item' in response:
-        return response['Item']
-    else:
-        return {}
+    return response['Item'] if 'Item' in response else {}
 
 
 def create_db_database(name, region):

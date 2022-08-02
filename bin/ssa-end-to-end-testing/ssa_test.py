@@ -28,7 +28,7 @@ def main(args):
     failed_tests = []
     for t in parsed.test_files:
         cur_status = test_detection(t, parsed)
-        status = status and (cur_status == PASSED or cur_status == SKIPPED)
+        status = status and cur_status in [PASSED, SKIPPED]
         if cur_status == PASSED:
             passed_tests.append(t)
         elif cur_status == SKIPPED:
@@ -71,13 +71,10 @@ def extract_pipeline(search, data, pass_condition):
 def activate_detection(detection, data, pass_condition):
     with open(detection, 'r') as fh:
         parsed_detection = yaml.safe_load(fh)
-        # Returns pipeline only for SSA detections
         if parsed_detection['type'] == "SSA":
-            pipeline = extract_pipeline(parsed_detection['search'], data, pass_condition)
-            return pipeline
-        else:
-            log(logging.WARN, "Not a SSA. It will be skipped.", parsed_detection['name'])
-            return None
+            return extract_pipeline(parsed_detection['search'], data, pass_condition)
+        log(logging.WARN, "Not a SSA. It will be skipped.", parsed_detection['name'])
+        return None
 
 
 def assert_results(pass_condition, events):
@@ -102,12 +99,15 @@ def test_detection(test, args):
             for unit in test_desc['tests']:
                 detection = get_detection(unit)
                 if detection['type'] == 'streaming':
-                    log(logging.INFO, "Testing %s" % name)
+                    log(logging.INFO, f"Testing {name}")
                     # Prepare data
-                    data_dir = tempfile.TemporaryDirectory(prefix="data", dir=get_path("%s" % SSML_CWD))
-                    detection_file = get_path("../detections/%s" % unit['file'])
+                    data_dir = tempfile.TemporaryDirectory(
+                        prefix="data", dir=get_path(f"{SSML_CWD}")
+                    )
+
+                    detection_file = get_path(f"../detections/{unit['file']}")
                     if unit['attack_data'] is None or len(unit['attack_data']) == 0:
-                        log(logging.ERROR, "No dataset in testing file in %s" % test)
+                        log(logging.ERROR, f"No dataset in testing file in {test}")
                         return FAILED
                     test_data = pull_data(unit, data_dir.name)
                     # Extract pipeline and remove SSA decorations
@@ -121,30 +121,43 @@ def test_detection(test, args):
                     if spl2 is not None:
                         # Preparing Execution
                         spl2_file = os.path.join(data_dir.name, "test.spl2")
-                        test_out = "%s.out" % spl2_file
-                        test_status = "%s.status" % test_out
+                        test_out = f"{spl2_file}.out"
+                        test_status = f"{test_out}.status"
                         with open(spl2_file, 'w') as spl2_fh:
                             spl2_fh.write(spl2)
                         # Execute SPL2
-                        log(logging.INFO, "Humvee test %s" % unit['name'])
+                        log(logging.INFO, f"Humvee test {unit['name']}")
                         try:
-                            subprocess.run(["/usr/bin/java",
-                                            "-jar", get_path("%s/humvee.jar" % SSML_CWD),
-                                            'cli',
-                                            '-i', spl2_file,
-                                            '-o', test_out],
-                                           stderr=subprocess.DEVNULL,
-                                           timeout=TEST_TIMEOUT)
+                            subprocess.run(
+                                [
+                                    "/usr/bin/java",
+                                    "-jar",
+                                    get_path(f"{SSML_CWD}/humvee.jar"),
+                                    'cli',
+                                    '-i',
+                                    spl2_file,
+                                    '-o',
+                                    test_out,
+                                ],
+                                stderr=subprocess.DEVNULL,
+                                timeout=TEST_TIMEOUT,
+                            )
+
                         except TimeoutError:
-                            log(logging.ERROR, "%s test timeout" % unit['name'])
+                            log(logging.ERROR, f"{unit['name']} test timeout")
                             return FAILED
                     # Validate that it can run
                     with open(test_status, "r") as test_status_fh:
                         status = '\n'.join(test_status_fh.readlines())
                         if status == "OK\n":
-                            log(logging.INFO, "%s executed without issues" % unit['name'])
+                            log(logging.INFO, f"{unit['name']} executed without issues")
                         else:
-                            log(logging.ERROR, "Detection %s can not be executed" % detection_file, detail=status)
+                            log(
+                                logging.ERROR,
+                                f"Detection {detection_file} can not be executed",
+                                detail=status,
+                            )
+
                             log(logging.ERROR, "Faulty SPL2 with errors", detail=spl2)
                             return FAILED
                     # Validate the results
@@ -154,7 +167,7 @@ def test_detection(test, args):
                             "Output events sample (%d/%d)" % (len(res[:10]), len(res)),
                             detail="\n".join(res[:10]))
                         if assert_results(unit['pass_condition'], res):
-                            log(logging.DEBUG, "Passed test %s" % unit['name'])
+                            log(logging.DEBUG, f"Passed test {unit['name']}")
                         else:
                             log(logging.ERROR, "Did not pass condition:", unit['pass_condition'])
                             return FAILED

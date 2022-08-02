@@ -39,7 +39,9 @@ def xml_compare(expected, found):
         return False
 
     # compare children
-    if not all([xml_compare(a, b) for a, b in zip(expected_children, found_children)]):
+    if not all(
+        xml_compare(a, b) for a, b in zip(expected_children, found_children)
+    ):
         return False
 
     # compare elements, if there is no text node, return True
@@ -54,12 +56,11 @@ def parse_parameters(param_node):
     if param_node.tag == "param":
         return param_node.text
     elif param_node.tag == "param_list":
-        parameters = []
-        for mvp in param_node:
-            parameters.append(mvp.text)
-        return parameters
+        return [mvp.text for mvp in param_node]
     else:
-        raise ValueError("Invalid configuration scheme, %s tag unexpected." % param_node.tag)
+        raise ValueError(
+            f"Invalid configuration scheme, {param_node.tag} tag unexpected."
+        )
 
 def parse_xml_data(parent_node, child_node_tag):
     data = {}
@@ -69,6 +70,6 @@ def parse_xml_data(parent_node, child_node_tag):
                 data[child.get("name")] = {}
                 for param in child:
                     data[child.get("name")][param.get("name")] = parse_parameters(param)
-        elif "item" == parent_node.tag:
+        elif parent_node.tag == "item":
             data[child.get("name")] = parse_parameters(child)
     return data

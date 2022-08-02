@@ -14,19 +14,21 @@ HUMVEE_ARTIFACT_SEARCH = "https://repo.splunk.com/artifactory/api/search/artifac
 def get_latest_humvee_object():
     #res = json.loads(urllib.request.urlopen(HUMVEE_ARTIFACT_SEARCH).read().decode('utf-8'))
     res = get(HUMVEE_ARTIFACT_SEARCH).json()
-    for r in res['results']:
-        if re.match(r".*/latest/humvee-.*\.jar$", r['uri']):
-            #latest_humvee = json.loads(urllib.request.urlopen(r['uri']).read().decode('utf-8'))
-            latest_humvee = get(r['uri']).json()
-            return latest_humvee
-    return ""
+    return next(
+        (
+            get(r['uri']).json()
+            for r in res['results']
+            if re.match(r".*/latest/humvee-.*\.jar$", r['uri'])
+        ),
+        "",
+    )
 
 
 def build_humvee(path):
     if not os.path.exists(path):
         os.mkdir(path)
     latest_humvee_object = get_latest_humvee_object()
-    humvee_path = "%s/humvee.jar" % path
+    humvee_path = f"{path}/humvee.jar"
     humvee_sha256 = ""
     if os.path.exists(humvee_path):
         with open(humvee_path, 'rb') as jar_fh:
@@ -42,7 +44,11 @@ def build_humvee(path):
 
 
     else:
-        log(logging.DEBUG, "Already latest checksum %s" % humvee_sha256, detail=latest_humvee_object)
+        log(
+            logging.DEBUG,
+            f"Already latest checksum {humvee_sha256}",
+            detail=latest_humvee_object,
+        )
 
 
 #def convert_to_ssa(detection):

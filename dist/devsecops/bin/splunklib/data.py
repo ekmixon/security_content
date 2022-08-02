@@ -40,16 +40,16 @@ XNAME_LIST = XNAMEF_REST % LNAME_LIST
 # both the extended and local versions of the following names.
 
 def isdict(name):
-    return name == XNAME_DICT or name == LNAME_DICT
+    return name in [XNAME_DICT, LNAME_DICT]
 
 def isitem(name):
-    return name == XNAME_ITEM or name == LNAME_ITEM
+    return name in [XNAME_ITEM, LNAME_ITEM]
 
 def iskey(name):
-    return name == XNAME_KEY or name == LNAME_KEY
+    return name in [XNAME_KEY, LNAME_KEY]
 
 def islist(name):
-    return name == XNAME_LIST or name == LNAME_LIST
+    return name in [XNAME_LIST, LNAME_LIST]
 
 def hasattrs(element):
     return len(element.attrib) > 0
@@ -126,7 +126,7 @@ def load_elem(element, nametable=None):
     for key, val in six.iteritems(attrs):
         if key in value and key in collision_keys:
             value[key].append(val)
-        elif key in value and key not in collision_keys:
+        elif key in value:
             value[key] = [value[key], val]
             collision_keys.append(key)
         else:
@@ -162,12 +162,8 @@ def load_value(element, nametable=None):
         if text is None: 
             return None
         text = text.strip()
-        if len(text) == 0: 
-            return None
-        return text
-
-    # Look for the special case of a single well-known structure
-    if count == 1:
+        return None if len(text) == 0 else text
+    elif count == 1:
         child = children[0]
         tag = child.tag
         if isdict(tag): return load_dict(child, nametable)
@@ -209,8 +205,7 @@ class Record(dict):
     sep = '.'
 
     def __call__(self, *args):
-        if len(args) == 0: return self
-        return Record((key, self[key]) for key in args)
+        return Record((key, self[key]) for key in args) if args else self
 
     def __getattr__(self, name):
         try:
@@ -250,7 +245,7 @@ class Record(dict):
             else:
                 result[suffix] = v
         if len(result) == 0:
-            raise KeyError("No key or prefix: %s" % key)
+            raise KeyError(f"No key or prefix: {key}")
         return result
     
 

@@ -16,26 +16,22 @@ CVESSEARCH_API_URL = 'https://cve.circl.lu'
 def get_cve_enrichment_new(cve_id):
     cve = CVESearch(CVESSEARCH_API_URL)
     result = cve.id(cve_id)
-    cve_enriched = dict()
-    cve_enriched['id'] = cve_id
-    cve_enriched['cvss'] = result['cvss']
-    cve_enriched['summary'] = result['summary']
-    return cve_enriched
+    return {'id': cve_id, 'cvss': result['cvss'], 'summary': result['summary']}
 
 def get_all_techniques(projects_path):
     path_cti = path.join(projects_path,'cti/enterprise-attack')
     fs = FileSystemSource(path_cti)
-    all_techniques = get_techniques(fs)
-    return all_techniques
+    return get_techniques(fs)
 
 def get_techniques(src):
     filt = [Filter('type', '=', 'attack-pattern')]
     return src.query(filt)
 
 def mitre_attack_object(technique, attack):
-    mitre_attack = dict()
-    mitre_attack['technique_id'] = technique["external_references"][0]["external_id"]
-    mitre_attack['technique'] = technique["name"]
+    mitre_attack = {
+        'technique_id': technique["external_references"][0]["external_id"],
+        'technique': technique["name"],
+    }
 
     # process tactics
     tactics = []
@@ -49,11 +45,15 @@ def mitre_attack_object(technique, attack):
     return mitre_attack
 
 def get_mitre_enrichment_new(attack, mitre_attack_id):
-    for technique in attack:
-        if mitre_attack_id == technique["external_references"][0]["external_id"]:
-            mitre_attack = mitre_attack_object(technique, attack)
-            return mitre_attack
-    return []
+    return next(
+        (
+            mitre_attack_object(technique, attack)
+            for technique in attack
+            if mitre_attack_id
+            == technique["external_references"][0]["external_id"]
+        ),
+        [],
+    )
 
 def generate_doc_stories(REPO_PATH, OUTPUT_DIR, TEMPLATE_PATH, attack, sorted_detections, messages, VERBOSE):
     manifest_files = []

@@ -72,7 +72,7 @@ class Message(object):
         self.message = message
 
     def __repr__(self):
-        return "%s: %s" % (self.type, self.message)
+        return f"{self.type}: {self.message}"
 
     def __eq__(self, other):
         return (self.type, self.message) == (other.type, other.message)
@@ -241,10 +241,7 @@ class ResultsReader(object):
                         values = []
                     elif event == 'end':
                         field_name = elem.attrib['k']
-                        if len(values) == 1:
-                            result[field_name] = values[0]
-                        else:
-                            result[field_name] = values
+                        result[field_name] = values[0] if len(values) == 1 else values
                         # Calling .clear() is necessary to let the
                         # element be garbage collected. Otherwise
                         # arbitrarily large results sets will use
@@ -260,16 +257,15 @@ class ResultsReader(object):
                         # So we'll define it here
 
                         def __itertext(self):
-                          tag = self.tag
-                          if not isinstance(tag, six.string_types) and tag is not None:
-                              return
-                          if self.text:
-                              yield self.text
-                          for e in self:
-                              for s in __itertext(e):
-                                  yield s
-                              if e.tail:
-                                  yield e.tail
+                            tag = self.tag
+                            if not isinstance(tag, six.string_types) and tag is not None:
+                                return
+                            if self.text:
+                                yield self.text
+                            for e in self:
+                                yield from __itertext(e)
+                                if e.tail:
+                                    yield e.tail
 
                         text = "".join(__itertext(elem))
                     values.append(text)

@@ -16,8 +16,8 @@ LOGGER = logging.getLogger(__name__)
 
 def create_random_password():
     alphabet = string.ascii_letters + string.digits
-    password = ''.join(secrets.choice(alphabet) for i in range(10))
-    password = '!1' + password + 'n:'
+    password = ''.join(secrets.choice(alphabet) for _ in range(10))
+    password = f'!1{password}n:'
     return password
 
 
@@ -27,15 +27,30 @@ def configure_attack_range(region, tf_state_store, password, ssh_key_name):
     with open('attack_range/attack_range.conf.template', 'r') as file :
       filedata = file.read()
 
-    filedata = filedata.replace('attack_range_password = Pl3ase-k1Ll-me:p', 'attack_range_password = ' + password)
+    filedata = filedata.replace(
+        'attack_range_password = Pl3ase-k1Ll-me:p',
+        f'attack_range_password = {password}',
+    )
+
     filedata = filedata.replace('tf_backend = local', 'tf_backend = remote')
-    filedata = filedata.replace('tf_backend_name = threat_research_attack_range', 'tf_backend_name = ' + tf_state_store)
-    filedata = filedata.replace('region = us-west-2', 'region = ' + region)
+    filedata = filedata.replace(
+        'tf_backend_name = threat_research_attack_range',
+        f'tf_backend_name = {tf_state_store}',
+    )
+
+    filedata = filedata.replace('region = us-west-2', f'region = {region}')
     filedata = filedata.replace('windows_domain_controller = 1', 'windows_domain_controller = 0')
     filedata = filedata.replace('windows_server_join_domain = 1', 'windows_server_join_domain = 0')
     filedata = filedata.replace('range_name = default', 'range_name = dt')
-    filedata = filedata.replace('key_name = attack-range-key-pair', 'key_name = ' + ssh_key_name)
-    filedata = filedata.replace('private_key_path = ~/.ssh/id_rsa', 'private_key_path = ' + str(os.getcwd() + "/" + ssh_key_name))
+    filedata = filedata.replace(
+        'key_name = attack-range-key-pair', f'key_name = {ssh_key_name}'
+    )
+
+    filedata = filedata.replace(
+        'private_key_path = ~/.ssh/id_rsa',
+        'private_key_path = ' + str(f"{os.getcwd()}/{ssh_key_name}"),
+    )
+
 
     with open('attack_range/attack_range.conf', 'w') as file:
       file.write(filedata)
@@ -51,10 +66,10 @@ def build_attack_range(region, tf_state_store, ssh_key_name):
     module.sys.argv = ['attack_range', '--config', 'attack_range/attack_range.conf', 'build']
 
     try:
-        LOGGER.info(f"Build Attack Range")
+        LOGGER.info("Build Attack Range")
         results = module.main(module.sys.argv)
     except Exception as e:
-        LOGGER.error('Build Error: ' + str(e))
+        LOGGER.error(f'Build Error: {str(e)}')
         module.sys.argv = ['attack_range', '--config', 'attack_range/attack_range.conf', 'destroy']
         module.main(module.sys.argv)
         sys.exit(1)
@@ -73,10 +88,10 @@ def destroy_attack_range(region, data, tf_state_store):
     module.sys.argv = ['attack_range', '--config', 'attack_range/attack_range.conf', 'destroy']
 
     try:
-        LOGGER.info(f"Destroy Attack Range")
+        LOGGER.info("Destroy Attack Range")
         results = module.main(module.sys.argv)
     except Exception as e:
-        LOGGER.error('Build Error: ' + str(e))
+        LOGGER.error(f'Build Error: {str(e)}')
         module.sys.argv = ['attack_range', '--config', 'attack_range/attack_range.conf', 'destroy']
         module.main(module.sys.argv)
         sys.exit(1)

@@ -20,26 +20,33 @@ def load_file(file_path):
 def prepare_test(file_path):
 
     # read test file and return as object
-    test_obj = load_file('security_content/' + file_path)
+    test_obj = load_file(f'security_content/{file_path}')
     detection_obj = load_file('security_content/detections/' + test_obj['tests'][0]['file'])
 
     # download attack data
     epoch_time = str(int(time.time()))
-    folder_name = "attack_data_" + epoch_time
+    folder_name = f"attack_data_{epoch_time}"
     os.mkdir(folder_name)
 
     for test in test_obj['tests']:
         for attack_data in test['attack_data']:
             url = attack_data['data']
             r = requests.get(url, allow_redirects=True)
-            attack_data_file_path = folder_name + '/' + attack_data['file_name']
-            open(folder_name + '/' + attack_data['file_name'], 'wb').write(r.content)
+            attack_data_file_path = f'{folder_name}/' + attack_data['file_name']
+            open(f'{folder_name}/' + attack_data['file_name'], 'wb').write(r.content)
 
             # Update timestamps before replay
-            if 'update_timestamp' in attack_data:
-                if attack_data['update_timestamp'] == True:
-                    data_manipulation = DataManipulation()
-                    data_manipulation.manipulate_timestamp(folder_name + '/' + attack_data['file_name'], attack_data['sourcetype'], attack_data['source'])
+            if (
+                'update_timestamp' in attack_data
+                and attack_data['update_timestamp'] == True
+            ):
+                data_manipulation = DataManipulation()
+                data_manipulation.manipulate_timestamp(
+                    f'{folder_name}/' + attack_data['file_name'],
+                    attack_data['sourcetype'],
+                    attack_data['source'],
+                )
+
 
     dict_test = {
         "test_obj": test_obj,

@@ -3,9 +3,9 @@ import os
 import argparse
 import sys
 
-tested = dict()
-untested = dict()
-coverage = dict()
+tested = {}
+untested = {}
+coverage = {}
 total_tested = 0
 total_untested = 0
 
@@ -29,7 +29,7 @@ def main(args):
     populate_coverage(parsed.types)
     print_results(parsed.types)
     if total_tested / (total_tested + total_untested) < parsed.min_coverage:
-        print("Minimum coverage not met for %s" % ",".join(parsed.types))
+        print(f'Minimum coverage not met for {",".join(parsed.types)}')
         exit(-1)
 
 
@@ -42,7 +42,7 @@ def populate_coverage(types):
                 with open(os.path.join(root, test), 'r') as test_fh:
                     test_desc = yaml.safe_load(test_fh)
                     for t in test_desc['tests']:
-                        detection_desc = parse_detection(get_path("../detections/%s" % t['file']))
+                        detection_desc = parse_detection(get_path(f"../detections/{t['file']}"))
                         detection_type = detection_desc['type']
                         if detection_type in types:
                             if detection_type not in tested:
@@ -56,10 +56,10 @@ def populate_coverage(types):
                     detection_desc = parse_detection(os.path.join(root, detection))
                     detection_type = detection_desc['type']
                     if detection_type in types:
-                        detection = "%s/%s" % (root.split("/")[-1], detection)
+                        detection = f'{root.split("/")[-1]}/{detection}'
                         if detection not in tested[detection_type]:
                             if detection_type not in untested:
-                                untested[detection_type] = list()
+                                untested[detection_type] = []
                             untested[detection_type].append(detection)
 
     for k in types:

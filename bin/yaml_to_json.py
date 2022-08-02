@@ -14,7 +14,7 @@ class Yaml2Json():
 
         self.repo_path = repo_path
 
-        if type == 'detections' or type == 'stories':
+        if type in ['detections', 'stories']:
             lookup_objects = self.load_objects('lookups')
             self.lookups = self.generate_lookup_dict(lookup_objects)
             macro_objects = self.load_objects('macros')
@@ -39,11 +39,11 @@ class Yaml2Json():
 
 
     def get_repo_dir(self):
-        if not self.repo_path:
-            # this file typically resides in '\bin' one level below the repo
-            return os.path.join(os.path.dirname(__file__), '../')
-        else:
-            return os.path.abspath(self.repo_path)
+        return (
+            os.path.abspath(self.repo_path)
+            if self.repo_path
+            else os.path.join(os.path.dirname(__file__), '../')
+        )
 
 
     def get_type_dir(self, type):
@@ -54,9 +54,7 @@ class Yaml2Json():
     def list_objects(self, type):
         objects = self.load_objects(type)
         total = len(objects)
-        content = {type:objects, 'count':total}
-
-        return content
+        return {type:objects, 'count':total}
 
 
     def load_objects(self, type):
@@ -67,7 +65,7 @@ class Yaml2Json():
         for root, dirnames, filenames in os.walk(type_dir):
             for filename in filenames:
                 filepath = os.path.join(root, filename)
-                if not 'deprecated' in filepath:
+                if 'deprecated' not in filepath:
                     filename_w_ext = os.path.basename(filepath)
                     filename, file_extension = os.path.splitext(filename_w_ext)
                     if filename != "" and file_extension == '.yml':
@@ -75,8 +73,7 @@ class Yaml2Json():
 
         objects = []
         for file_path in file_paths:
-            object = self.load_object(file_path, type)
-            if object:
+            if object := self.load_object(file_path, type):
                 objects.append(object)
 
         return objects
@@ -91,14 +88,43 @@ class Yaml2Json():
                 raise
 
         # enrich story with detections and responses
-        if type == 'stories':
-            if not 'type' in file:
+        if type == 'baselines':
+            file['macros'] = self.parse_and_add_macros(file)
+            lookups = self.parse_and_add_lookups(file['search'])
+            if len(lookups) > 0:
+                file['lookups'] = lookups
+        elif type == 'detections':
+            if file['type'] in ['Baseline', 'Investigation']:
+                return None
+            if file['name'] in self.bas_det:
+                file['baselines'] = self.bas_det[file['name']]
+            if file['type'] != 'SSA':
+                file['macros'] = self.parse_and_add_macros(file)
+                lookups = self.parse_and_add_lookups(file['search'])
+                if len(lookups) > 0:
+                    file['lookups'] = lookups
+            technique_array = []
+            tactics_array = []
+            groups_array = []
+            if 'tags' in file and 'mitre_attack_id' in file['tags']:
+                for mitre_attack_id in file['tags']['mitre_attack_id']:
+                    if mitre_attack_id in self.mitre_enrichment:
+                        obj = self.mitre_enrichment[mitre_attack_id]
+                        technique_array.append(obj[0])
+                        tactics_array.extend(obj[1])
+                        groups_array.extend(obj[2])
+            file['tags']['mitre_attack_technique'] = technique_array
+            file['tags']['mitre_attack_tactics'] = tactics_array
+            file['tags']['mitre_attack_groups'] = groups_array
+
+        elif type == 'stories':
+            if 'type' not in file:
                 file['type'] = ''
 
-            if file['name'] in self.det_sto:
-                file['detections'] = self.det_sto[file['name']]
-            else:
-                file['detections'] = []
+            file['detections'] = (
+                self.det_sto[file['name']] if file['name'] in self.det_sto else []
+            )
+
             mitre_attack_id_set = set()
             mitre_attack_technique_set = set()
             mitre_attack_tactics_set = set()
@@ -118,38 +144,6 @@ class Yaml2Json():
             file['tags']['mitre_attack_tactics'] = list(mitre_attack_tactics_set)
             file['tags']['mitre_attack_groups'] = list(mitre_attack_groups_set)
 
-        # enrich detections with baselines and macros
-        if type == 'detections':
-            if file['type'] == 'Baseline' or file['type'] == 'Investigation':
-                return None
-            if file['name'] in self.bas_det:
-                file['baselines'] = self.bas_det[file['name']]
-            if file['type'] != 'SSA':
-                file['macros'] = self.parse_and_add_macros(file)
-                lookups = self.parse_and_add_lookups(file['search'])
-                if len(lookups) > 0:
-                    file['lookups'] = lookups
-            technique_array = []
-            tactics_array = []
-            groups_array = []
-            if 'tags' in file:
-                if 'mitre_attack_id' in file['tags']:
-                    for mitre_attack_id in file['tags']['mitre_attack_id']:
-                        if mitre_attack_id in self.mitre_enrichment:
-                            obj = self.mitre_enrichment[mitre_attack_id]
-                            technique_array.append(obj[0])
-                            tactics_array.extend(obj[1])
-                            groups_array.extend(obj[2])
-            file['tags']['mitre_attack_technique'] = technique_array
-            file['tags']['mitre_attack_tactics'] = tactics_array
-            file['tags']['mitre_attack_groups'] = groups_array
-
-        if type == 'baselines':
-            file['macros'] = self.parse_and_add_macros(file)
-            lookups = self.parse_and_add_lookups(file['search'])
-            if len(lookups) > 0:
-                file['lookups'] = lookups
-
         return file
 
 
@@ -158,10 +152,16 @@ class Yaml2Json():
         with open(os.path.join(self.get_repo_dir(), 'lookups', 'mitre_enrichment.csv')) as csv_file:
 
             try:
-                mitre_enrichment = {}
                 reader = csv.DictReader(csv_file)
-                for row in reader:
-                    mitre_enrichment[row['mitre_id']] = [row['technique'], row['tactics'].split('|'), row['groups'].split('|')]
+                mitre_enrichment = {
+                    row['mitre_id']: [
+                        row['technique'],
+                        row['tactics'].split('|'),
+                        row['groups'].split('|'),
+                    ]
+                    for row in reader
+                }
+
             except:
                 raise
 
@@ -169,56 +169,56 @@ class Yaml2Json():
 
 
     def get_file_name(self, input_str):
-        file_name = input_str.replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
-        return file_name
+        return (
+            input_str.replace(' ', '_')
+            .replace('-', '_')
+            .replace('.', '_')
+            .replace('/', '_')
+            .lower()
+        )
 
 
     def map_baseline_to_detection(self, baselines):
-        bas_det = dict()
+        bas_det = {}
         for baseline in baselines:
-            if 'tags' in baseline:
-                if 'detections' in baseline['tags']:
-                    for detection in baseline['tags']['detections']:
-                        if not (detection in bas_det):
-                            bas_det[detection] = [baseline]
-                        else:
-                            bas_det[detection].append(baseline)
+            if 'tags' in baseline and 'detections' in baseline['tags']:
+                for detection in baseline['tags']['detections']:
+                    if detection not in bas_det:
+                        bas_det[detection] = [baseline]
+                    else:
+                        bas_det[detection].append(baseline)
         return bas_det
 
 
     def map_detection_to_story(self, detections):
-        det_sto = dict()
+        det_sto = {}
         for detection in detections:
-            if 'tags' in detection:
-                if 'analytic_story' in detection['tags']:
-                    for story in detection['tags']['analytic_story']:
-                        if not (story in det_sto):
-                            det_sto[story] = [detection]
-                        else:
-                            det_sto[story].append(detection)
+            if 'tags' in detection and 'analytic_story' in detection['tags']:
+                for story in detection['tags']['analytic_story']:
+                    if story not in det_sto:
+                        det_sto[story] = [detection]
+                    else:
+                        det_sto[story].append(detection)
         return det_sto
 
 
     def generate_macro_dict(self, macros):
-        macro_dict = {}
-        for macro in macros:
-            macro_dict[macro['name']] = macro
-
-        return macro_dict
+        return {macro['name']: macro for macro in macros}
 
     def generate_lookup_dict(self, lookups):
-        lookup_dict = {}
-        for lookup in lookups:
-            lookup_dict[lookup['name']] = lookup
-
-        return lookup_dict
+        return {lookup['name']: lookup for lookup in lookups}
 
 
     def parse_and_add_macros(self, object):
         macros_found = re.findall('\`([^\s]+)`', object['search'])
         macros_filtered = set()
         for macro in macros_found:
-            if not 'cim_' in macro and not 'get_' in macro and not '_filter' in macro and not 'drop_dm_object_name' in macro:
+            if (
+                'cim_' not in macro
+                and 'get_' not in macro
+                and '_filter' not in macro
+                and 'drop_dm_object_name' not in macro
+            ):
                 start = macro.find('(')
                 if start != -1:
                     macros_filtered.add(macro[:start])
@@ -232,10 +232,18 @@ class Yaml2Json():
                 self.macros[macro]['lookups'] = lookups
             macro_objects.append(self.macros[macro])
 
-        new_dict = {}
-        new_dict['definition'] = 'search *'
-        new_dict['description'] = 'Update this macro to limit the output results to filter out false positives. '
-        new_dict['name'] = object['name'].replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_').lower() + '_filter'
+        new_dict = {
+            'definition': 'search *',
+            'description': 'Update this macro to limit the output results to filter out false positives. ',
+            'name': object['name']
+            .replace(' ', '_')
+            .replace('-', '_')
+            .replace('.', '_')
+            .replace('/', '_')
+            .lower()
+            + '_filter',
+        }
+
         macro_objects.append(new_dict)
 
         return macro_objects
@@ -246,9 +254,12 @@ class Yaml2Json():
         for lookup in lookups_found:
             if lookup in self.lookups:
                 lookup_obj = self.lookups[lookup]
-                if not ('fields_list' in lookup_obj):
+                if 'fields_list' not in lookup_obj:
                     csv_file_name = lookup_obj['filename']
-                    lookup_obj['csv_file_url'] = 'https://security-content.s3-us-west-2.amazonaws.com/lookups/' + csv_file_name
+                    lookup_obj[
+                        'csv_file_url'
+                    ] = f'https://security-content.s3-us-west-2.amazonaws.com/lookups/{csv_file_name}'
+
 
                 lookup_objects.append(lookup_obj)
 
@@ -261,7 +272,7 @@ if __name__ == "__main__":
     yml_types = ['detections', 'baselines', 'lookups', 'macros', 'response_tasks', 'responses', 'stories', 'deployments']
     # output directory name will be same as this filename
     output_dir = os.path.splitext(os.path.basename(__file__))[0]
-    print("JSON output directory: " + output_dir)
+    print(f"JSON output directory: {output_dir}")
     # remove any pre-existing output directories
     shutil.rmtree(output_dir, ignore_errors=True)
     print("Remove pre-existing JSON directory")
@@ -271,7 +282,7 @@ if __name__ == "__main__":
     # Generate all YAML types
     for yt in yml_types:
         processor = Yaml2Json(yt)
-        with open(os.path.join(output_dir, yt + '.json'), 'w') as json_out:
+        with open(os.path.join(output_dir, f'{yt}.json'), 'w') as json_out:
             # write out YAML type
             json.dump(processor.list_objects(yt), json_out)
-            print("Writing %s JSON" % yt)
+            print(f"Writing {yt} JSON")

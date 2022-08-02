@@ -34,9 +34,9 @@ def load_objects(file_path, VERBOSE, REPO_PATH):
     return files
 
 def process_deprecated(file,file_path):
-    DESCRIPTION_ANNOTATION = "WARNING, this detection has been marked deprecated by the Splunk Threat Research team, this means that it will no longer be maintained or supported. If you have any questions feel free to email us at: research@splunk.com. "
     if 'deprecated' in file_path:
         file['deprecated'] = True
+        DESCRIPTION_ANNOTATION = "WARNING, this detection has been marked deprecated by the Splunk Threat Research team, this means that it will no longer be maintained or supported. If you have any questions feel free to email us at: research@splunk.com. "
         file['description'] = DESCRIPTION_ANNOTATION + file['description']
     return file
 
@@ -59,8 +59,8 @@ def generate_lookup_files(lookups, TEMPLATE_PATH, OUTPUT_PATH,REPO_PATH):
     for i in sorted_lookups:
         for k,v in i.items():
             if k == 'filename':
-                lookup_file = REPO_PATH +'/lookups/'+ v
-                dist_lookup_dir = OUTPUT_PATH +'/lookups'
+                lookup_file = f'{REPO_PATH}/lookups/{v}'
+                dist_lookup_dir = f'{OUTPUT_PATH}/lookups'
                 shutil.copy(lookup_file,dist_lookup_dir)
     return sorted_lookups
 
@@ -105,7 +105,12 @@ def generate_ssa_yaml(detections, TEMPLATE_PATH, OUTPUT_PATH):
     yaml.Dumper.ignore_aliases = lambda *args : True
 
     for d in detections:
-        manifest_file = OUTPUT_PATH + '/detections/' + d['name'].lower().replace(" ", "_") + '.yml'
+        manifest_file = (
+            f'{OUTPUT_PATH}/detections/'
+            + d['name'].lower().replace(" ", "_")
+            + '.yml'
+        )
+
 
         # remove unused fields
         del d['risk']
@@ -116,7 +121,7 @@ def generate_ssa_yaml(detections, TEMPLATE_PATH, OUTPUT_PATH):
         with open(manifest_file, 'w') as file:
             documents = yaml.dump(d, file, sort_keys=True)
 
-    return OUTPUT_PATH + '/detections/'
+    return f'{OUTPUT_PATH}/detections/'
 
 def generate_savedsearches_conf(detections, deployments, TEMPLATE_PATH, OUTPUT_PATH):
     '''
@@ -156,11 +161,20 @@ def generate_use_case_library_conf(stories, detections, TEMPLATE_PATH, OUTPUT_PA
 def generate_macros_conf(macros, detections, TEMPLATE_PATH, OUTPUT_PATH):
     filter_macros = []
     for detection in detections:
-        new_dict = {}
-        new_dict['definition'] = 'search *'
-        new_dict['description'] = 'Update this macro to limit the output results to filter out false positives. '
-        new_dict['name'] = detection['name']. \
-            replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_').lower() + '_filter'
+        new_dict = {
+            'definition': 'search *',
+            'description': 'Update this macro to limit the output results to filter out false positives. ',
+            'name': (
+                detection['name']
+                .replace(' ', '_')
+                .replace('-', '_')
+                .replace('.', '_')
+                .replace('/', '_')
+                .lower()
+                + '_filter'
+            ),
+        }
+
         filter_macros.append(new_dict)
 
     all_macros = macros + filter_macros
@@ -180,24 +194,26 @@ def generate_macros_conf(macros, detections, TEMPLATE_PATH, OUTPUT_PATH):
 def generate_workbench_panels(response_tasks, stories, TEMPLATE_PATH, OUTPUT_PATH):
     workbench_panel_objects = []
     for response_task in response_tasks:
-        if response_task['type'] == 'Investigation':
-            if 'search' in response_task:
-                if 'inputs' in response_task:
-                    response_file_name = response_task['name'].replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
-                    response_file_name_xml = response_file_name + "___response_task.xml"
-                    response_task['lowercase_name'] = response_file_name
-                    workbench_panel_objects.append(response_task)
-                    j2_env = Environment(loader=FileSystemLoader(TEMPLATE_PATH), # nosemgrep
-                                        trim_blocks=True)
-                    template = j2_env.get_template('panel.j2')
-                    file_path = "default/data/ui/panels/workbench_panel_" + response_file_name_xml
-                    output_path = path.join(OUTPUT_PATH, file_path)
-                    response_task['search']= response_task['search'].replace(">","&gt;")
-                    response_task['search']= response_task['search'].replace("<","&lt;")
+        if (
+            response_task['type'] == 'Investigation'
+            and 'search' in response_task
+            and 'inputs' in response_task
+        ):
+            response_file_name = response_task['name'].replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
+            response_file_name_xml = f"{response_file_name}___response_task.xml"
+            response_task['lowercase_name'] = response_file_name
+            workbench_panel_objects.append(response_task)
+            j2_env = Environment(loader=FileSystemLoader(TEMPLATE_PATH), # nosemgrep
+                                trim_blocks=True)
+            template = j2_env.get_template('panel.j2')
+            file_path = f"default/data/ui/panels/workbench_panel_{response_file_name_xml}"
+            output_path = path.join(OUTPUT_PATH, file_path)
+            response_task['search']= response_task['search'].replace(">","&gt;")
+            response_task['search']= response_task['search'].replace("<","&lt;")
 
-                    output = template.render(search=response_task['search'])
-                    with open(output_path, 'w') as f:
-                        f.write(output)
+            output = template.render(search=response_task['search'])
+            with open(output_path, 'w') as f:
+                f.write(output)
 
     j2_env = Environment(loader=FileSystemLoader(TEMPLATE_PATH), # nosemgrep
                          trim_blocks=True)
@@ -218,23 +234,13 @@ def generate_workbench_panels(response_tasks, stories, TEMPLATE_PATH, OUTPUT_PAT
 
 def parse_data_models_from_search(search):
     match = re.search(r'from\sdatamodel\s?=\s?([^\s.]*)', search)
-    if match is not None:
-        return match.group(1)
-    return False
+    return match[1] if match is not None else False
 
 def parse_author_company(story):
     match_author = re.search(r'^([^,]+)', story['author'])
-    if match_author is None:
-        match_author = 'no'
-    else:
-        match_author = match_author.group(1)
-
+    match_author = 'no' if match_author is None else match_author[1]
     match_company = re.search(r',\s?(.*)$', story['author'])
-    if match_company is None:
-        match_company = 'no'
-    else:
-        match_company = match_company.group(1)
-
+    match_company = 'no' if match_company is None else match_company[1]
     return match_author, match_company
 
 def get_deployments(object, deployments):
@@ -256,17 +262,20 @@ def get_deployments(object, deployments):
                     else:
                         tag_array_deployment = deployment['tags'][tag]
 
-                    for tag_value_deployment in tag_array_deployment:
-                        if tag_value == tag_value_deployment:
-                            matched_deployments.append(deployment)
-                            continue
+                    matched_deployments.extend(
+                        deployment
+                        for tag_value_deployment in tag_array_deployment
+                        if tag_value == tag_value_deployment
+                    )
 
     # grab default for all stories if deployment not set
-    if len(matched_deployments) == 0:
+    if not matched_deployments:
         for deployment in deployments:
-            if 'analytic_story' in deployment['tags']:
-                if deployment['tags']['analytic_story'] == 'all':
-                    last_deployment = deployment
+            if (
+                'analytic_story' in deployment['tags']
+                and deployment['tags']['analytic_story'] == 'all'
+            ):
+                last_deployment = deployment
     else:
         last_deployment = matched_deployments[-1]
 
@@ -274,12 +283,16 @@ def get_deployments(object, deployments):
 
 def get_nes_fields(search, deployment):
     nes_fields_matches = []
-    if 'alert_action' in deployment:
-        if 'notable' in deployment['alert_action']:
-            if 'nes_fields' in deployment['alert_action']['notable']:
-                for field in deployment['alert_action']['notable']['nes_fields']:
-                    if (search.find(field + ' ') != -1):
-                        nes_fields_matches.append(field)
+    if (
+        'alert_action' in deployment
+        and 'notable' in deployment['alert_action']
+        and 'nes_fields' in deployment['alert_action']['notable']
+    ):
+        nes_fields_matches.extend(
+            field
+            for field in deployment['alert_action']['notable']['nes_fields']
+            if search.find(f'{field} ') != -1
+        )
 
     return nes_fields_matches
 
@@ -287,44 +300,48 @@ def get_nes_fields(search, deployment):
 def map_response_tasks_to_stories(response_tasks):
     sto_res = {}
     for response_task in response_tasks:
-        if response_task['type'] == 'Investigation':
-            if 'tags' in response_task:
-                if 'analytic_story' in response_task['tags']:
-                    for story in response_task['tags']['analytic_story']:
-                        if 'type' in response_task.keys():
-                            if response_task['type'] == 'Investigation':
-                                task_name = str('ESCU - ' + response_task['name'] + ' - Response Task')
-                        else:
-                            task_name = str('ESCU - ' + response_task['name'] + ' - Response Task')
-                        if not (story in sto_res):
-                            sto_res[story] = {task_name}
-                        else:
-                            sto_res[story].add(task_name)
+        if (
+            response_task['type'] == 'Investigation'
+            and 'tags' in response_task
+            and 'analytic_story' in response_task['tags']
+        ):
+            for story in response_task['tags']['analytic_story']:
+                if 'type' in response_task.keys():
+                    if response_task['type'] == 'Investigation':
+                        task_name = str('ESCU - ' + response_task['name'] + ' - Response Task')
+                else:
+                    task_name = str('ESCU - ' + response_task['name'] + ' - Response Task')
+                if story not in sto_res:
+                    sto_res[story] = {task_name}
+                else:
+                    sto_res[story].add(task_name)
     return sto_res
 
 def map_baselines_to_stories(baselines):
     sto_bas = {}
     for baseline in baselines:
-        if 'tags' in baseline:
-            if 'analytic_story' in baseline['tags']:
-                for story in baseline['tags']['analytic_story']:
-                    if 'Splunk Behavioral Analytics' in baseline['tags']['product']:
-                        continue
-                    baseline_name = str('ESCU - ' + baseline['name'])
-                    if not (story in sto_bas):
-                        sto_bas[story] = {baseline_name}
-                    else:
-                        sto_bas[story].add(baseline_name)
+        if 'tags' in baseline and 'analytic_story' in baseline['tags']:
+            for story in baseline['tags']['analytic_story']:
+                if 'Splunk Behavioral Analytics' in baseline['tags']['product']:
+                    continue
+                baseline_name = str('ESCU - ' + baseline['name'])
+                if story not in sto_bas:
+                    sto_bas[story] = {baseline_name}
+                else:
+                    sto_bas[story].add(baseline_name)
     return sto_bas
 
 def custom_jinja2_enrichment_filter(string, object):
     customized_string = string
     for key in object.keys():
         [key.encode('utf-8') for key in object]
-        customized_string = customized_string.replace("%" + key + "%", str(object[key]))
+        customized_string = customized_string.replace(f"%{key}%", str(object[key]))
 
     for key in object['tags'].keys():
-        customized_string = customized_string.replace("%" + key + "%", str(object['tags'][key]))
+        customized_string = customized_string.replace(
+            f"%{key}%", str(object['tags'][key])
+        )
+
 
     return customized_string
 
@@ -341,9 +358,8 @@ def add_annotations(detection):
         if key == 'mitre_attack':
             if 'mitre_attack_id' in detection['tags']:
                 savedsearch_annotations[key] = detection['tags']['mitre_attack_id']
-        else:
-            if key in detection['tags']:
-                savedsearch_annotations[key] = detection['tags'][key]
+        elif key in detection['tags']:
+            savedsearch_annotations[key] = detection['tags'][key]
     detection['savedsearch_annotations'] = savedsearch_annotations
 
     # add SSA risk_severity
@@ -363,20 +379,20 @@ def add_rba(detection):
         detection['risk_message'] = detection['tags']['message']
 
     risk_objects = []
-    risk_object_user_types = {'user', 'username', 'email address'}
-    risk_object_system_types = {'device', 'endpoint', 'hostname', 'ip address'}
     if 'observable' in detection['tags'] and 'risk_score' in detection['tags']:
 
+        risk_object_user_types = {'user', 'username', 'email address'}
+        risk_object_system_types = {'device', 'endpoint', 'hostname', 'ip address'}
         # go through each obervable
         for entity in detection['tags']['observable']:
 
-            risk_object = dict()
+            risk_object = {}
 
             # determine if is a user type, create risk
             if entity['type'].lower() in risk_object_user_types:
 
                 for r in entity['role']:
-                    if 'attacker' == r.lower() or 'victim' ==r.lower():
+                    if r.lower() in ['attacker', 'victim']:
 
                         risk_object['risk_object_type'] = 'user'
                         risk_object['risk_object_field'] = entity['name']
@@ -384,18 +400,16 @@ def add_rba(detection):
 
                         risk_objects.append(risk_object)
 
-            # determine if is a system type, create risk
             elif entity['type'].lower() in risk_object_system_types:
 
                 for r in entity['role']:
-                    if 'attacker' == r.lower() or 'victim' ==r.lower():
+                    if r.lower() in ['attacker', 'victim']:
 
                         risk_object['risk_object_type'] = 'system'
                         risk_object['risk_object_field'] = entity['name']
                         risk_object['risk_score'] = detection['tags']['risk_score']
                         risk_objects.append(risk_object)
 
-            # if is not a system or user, it is a threat object
             else:
                 risk_object['threat_object_field'] = entity['name']
                 risk_object['threat_object_type'] = entity['type'].lower()
@@ -415,19 +429,17 @@ def add_playbook(detection, playbooks):
                 detection['how_to_implement'] = detection['how_to_implement'] + preface + playbook['name']
         except KeyError:
             print("playbook " + playbook['name'] + " has no detections, passing....")
-            pass
     return detection
 
 def map_playbooks_to_stories(playbooks):
     sto_play = {}
     for playbook in playbooks:
-        if 'tags' in playbook:
-            if 'analytic_story' in playbook['tags']:
-                for story in playbook['tags']['analytic_story']:
-                    if not (story in sto_play):
-                        sto_play[story] = {playbook['name']}
-                    else:
-                        sto_play[story].add(playbook['name'])
+        if 'tags' in playbook and 'analytic_story' in playbook['tags']:
+            for story in playbook['tags']['analytic_story']:
+                if story not in sto_play:
+                    sto_play[story] = {playbook['name']}
+                else:
+                    sto_play[story].add(playbook['name'])
     return sto_play
 
 def prepare_detections(detections, deployments, playbooks, OUTPUT_PATH):
@@ -442,14 +454,9 @@ def prepare_detections(detections, deployments, playbooks, OUTPUT_PATH):
 
             if detection['type'] == 'Anomaly':
                 detection['search'] = detection['search'] + ' | collect index=signals'
-            elif detection['type'] == 'TTP':
+            elif detection['type'] in ['TTP', 'Correlation']:
                 detection['search'] = detection['search'] + ' | collect index=alerts'
-            elif detection['type'] == 'Correlation':
-                detection['search'] = detection['search'] + ' | collect index=alerts'
-
-        # parse out data_models
-        data_model = parse_data_models_from_search(detection['search'])
-        if data_model:
+        if data_model := parse_data_models_from_search(detection['search']):
             detection['data_model'] = data_model
 
         if detection['type'] != 'Investigation':
@@ -465,9 +472,8 @@ def prepare_detections(detections, deployments, playbooks, OUTPUT_PATH):
                 if key == 'mitre_attack':
                     if 'mitre_attack_id' in detection['tags']:
                         mappings[key] = detection['tags']['mitre_attack_id']
-                else:
-                    if key in detection['tags']:
-                        mappings[key] = detection['tags'][key]
+                elif key in detection['tags']:
+                    mappings[key] = detection['tags'][key]
             detection['mappings'] = mappings
 
             detection = add_annotations(detection)
@@ -505,41 +511,42 @@ def prepare_stories(stories, detections, playbooks):
                 if detection['type'] != "Investigation":
                     rule_name = str('ESCU - ' + detection['name'] + ' - Rule')
 
-                if story in sto_to_det.keys():
+                if story in sto_to_det:
                     sto_to_det[story].add(rule_name)
                 else:
                     sto_to_det[story] = {rule_name}
 
-                data_model = parse_data_models_from_search(detection['search'])
-                if data_model:
-                    if story in sto_to_data_models.keys():
+                if data_model := parse_data_models_from_search(
+                    detection['search']
+                ):
+                    if story in sto_to_data_models:
                         sto_to_data_models[story].add(data_model)
                     else:
                         sto_to_data_models[story] = {data_model}
 
                 if 'mitre_attack_id' in detection['tags']:
-                    if story in sto_to_mitre_attack_ids.keys():
+                    if story in sto_to_mitre_attack_ids:
                         for mitre_attack_id in detection['tags']['mitre_attack_id']:
                             sto_to_mitre_attack_ids[story].add(mitre_attack_id)
                     else:
                         sto_to_mitre_attack_ids[story] = set(detection['tags']['mitre_attack_id'])
 
                 if 'kill_chain_phases' in detection['tags']:
-                    if story in sto_to_kill_chain_phases.keys():
+                    if story in sto_to_kill_chain_phases:
                         for kill_chain in detection['tags']['kill_chain_phases']:
                             sto_to_kill_chain_phases[story].add(kill_chain)
                     else:
                         sto_to_kill_chain_phases[story] = set(detection['tags']['kill_chain_phases'])
 
                 if 'cis20' in detection['tags']:
-                    if story in sto_to_ciss.keys():
+                    if story in sto_to_ciss:
                         for cis in detection['tags']['cis20']:
                             sto_to_ciss[story].add(cis)
                     else:
                         sto_to_ciss[story] = set(detection['tags']['cis20'])
 
                 if 'nist' in detection['tags']:
-                    if story in sto_to_nists.keys():
+                    if story in sto_to_nists:
                         for nist in detection['tags']['nist']:
                             sto_to_nists[story].add(nist)
                     else:
@@ -549,6 +556,7 @@ def prepare_stories(stories, detections, playbooks):
     sto_bas = map_baselines_to_stories(baselines)
     sto_play = map_playbooks_to_stories(playbooks)
 
+    keys = ['mitre_attack', 'kill_chain_phases', 'cis20', 'nist']
     for story in stories:
         story['author_name'], story['author_company'] = parse_author_company(story)
         story['lowercase_name'] = story['name'].replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
@@ -579,12 +587,7 @@ def prepare_stories(stories, detections, playbooks):
 
 
 
-        keys = ['mitre_attack', 'kill_chain_phases', 'cis20', 'nist']
-        mappings = {}
-        for key in keys:
-            if key in story:
-                mappings[key] = story[key]
-
+        mappings = {key: story[key] for key in keys if key in story}
         story['mappings'] = mappings
 
     return stories
@@ -602,12 +605,14 @@ def generate_mitre_lookup(OUTPUT_PATH):
         apt_groups = []
         for relationship in enterprise_relationships:
             if (relationship['target_ref'] == technique['id']) and relationship['source_ref'].startswith('intrusion-set'):
-                for group in enterprise_groups:
-                    if relationship['source_ref'] == group['id']:
-                        apt_groups.append(group['name'])
+                apt_groups.extend(
+                    group['name']
+                    for group in enterprise_groups
+                    if relationship['source_ref'] == group['id']
+                )
 
-        if not ('revoked' in technique):
-            if len(apt_groups) == 0:
+        if 'revoked' not in technique:
+            if not apt_groups:
                 apt_groups.append('no')
             csv_mitre_rows.append([technique['technique_id'], technique['technique'], '|'.join(technique['tactic']).replace('-',' ').title(), '|'.join(apt_groups)])
 
@@ -641,8 +646,24 @@ def compute_objects(objects, PRODUCT, OUTPUT_PATH):
 
     if PRODUCT == "ESCU":
         # only use ESCU detections to the configurations
-        objects["detections"] = sorted(filter(lambda d: not 'Splunk Behavioral Analytics' in d['tags']['product'], objects["detections"]), key=lambda d: d['name'])
-        objects["stories"] = sorted(filter(lambda s: not 'Splunk Behavioral Analytics' in s['tags']['product'], objects["stories"]), key=lambda s: s['name'])
+        objects["detections"] = sorted(
+            filter(
+                lambda d: 'Splunk Behavioral Analytics'
+                not in d['tags']['product'],
+                objects["detections"],
+            ),
+            key=lambda d: d['name'],
+        )
+
+        objects["stories"] = sorted(
+            filter(
+                lambda s: 'Splunk Behavioral Analytics'
+                not in s['tags']['product'],
+                objects["stories"],
+            ),
+            key=lambda s: s['name'],
+        )
+
 
     if PRODUCT == "SSA":
         # only SSA detections, also no need to calculate stories

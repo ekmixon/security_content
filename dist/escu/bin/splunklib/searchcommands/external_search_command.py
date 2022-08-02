@@ -38,7 +38,7 @@ class ExternalSearchCommand(object):
     def __init__(self, path, argv=None, environ=None):
 
         if not isinstance(path, (bytes, six.text_type)):
-            raise ValueError('Expected a string value for path, not {}'.format(repr(path)))
+            raise ValueError(f'Expected a string value for path, not {repr(path)}')
 
         self._logger = getLogger(self.__class__.__name__)
         self._path = six.text_type(path)
@@ -57,7 +57,10 @@ class ExternalSearchCommand(object):
     @argv.setter
     def argv(self, value):
         if not (value is None or isinstance(value, (list, tuple))):
-            raise ValueError('Expected a list, tuple or value of None for argv, not {}'.format(repr(value)))
+            raise ValueError(
+                f'Expected a list, tuple or value of None for argv, not {repr(value)}'
+            )
+
         self._argv = value
 
     @property
@@ -67,7 +70,7 @@ class ExternalSearchCommand(object):
     @environ.setter
     def environ(self, value):
         if not (value is None or isinstance(value, dict)):
-            raise ValueError('Expected a dictionary value for environ, not {}'.format(repr(value)))
+            raise ValueError(f'Expected a dictionary value for environ, not {repr(value)}')
         self._environ = value
 
     @property
@@ -90,7 +93,7 @@ class ExternalSearchCommand(object):
             self._execute(self._path, self._argv, self._environ)
         except:
             error_type, error, tb = sys.exc_info()
-            message = 'Command execution failed: ' + six.text_type(error)
+            message = f'Command execution failed: {six.text_type(error)}'
             self._logger.error(message + '\nTraceback:\n' + ''.join(traceback.format_tb(tb)))
             sys.exit(1)
 
@@ -179,7 +182,7 @@ class ExternalSearchCommand(object):
 
             directories = [directory for directory in paths.split(';') if len(directory)]
 
-            if len(directories) == 0:
+            if not directories:
                 return None
 
             if len(extension) and extension in executable_extensions:

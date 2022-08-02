@@ -94,7 +94,9 @@ class ReportingCommand(SearchCommand):
             self._configuration.streaming_preop = ' '.join(streaming_preop)
             return
 
-        raise RuntimeError('Unrecognized reporting command phase: {}'.format(json_encode_string(six.text_type(phase))))
+        raise RuntimeError(
+            f'Unrecognized reporting command phase: {json_encode_string(six.text_type(phase))}'
+        )
 
     def reduce(self, records):
         """ Override this method to produce a reporting data structure.
@@ -244,7 +246,7 @@ class ReportingCommand(SearchCommand):
 
             """
             if not issubclass(command, ReportingCommand):
-                raise TypeError('{} is not a ReportingCommand'.format( command))
+                raise TypeError(f'{command} is not a ReportingCommand')
 
             if command.reduce == ReportingCommand.reduce:
                 raise AttributeError('No ReportingCommand.reduce override')
@@ -266,7 +268,7 @@ class ReportingCommand(SearchCommand):
 
             # Create new StreamingCommand.ConfigurationSettings class
 
-            module = command.__module__ + '.' + command.__name__ + '.map'
+            module = f'{command.__module__}.{command.__name__}.map'
             name = b'ConfigurationSettings'
             bases = (StreamingCommand.ConfigurationSettings,)
 

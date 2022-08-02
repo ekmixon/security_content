@@ -21,7 +21,7 @@ def prepare_detection_testing(ssh_key_name, private_key, splunk_ip, splunk_passw
         module = __import__('generate')
         results = module.main(REPO_PATH = 'security_content' , OUTPUT_PATH = 'security_content/dist/escu', PRODUCT = 'ESCU', VERBOSE = 'False' )
     except Exception as e:
-        print('Error: ' + str(e))
+        print(f'Error: {str(e)}')
 
     update_ESCU_app(splunk_ip, ssh_key_name, splunk_password)
 
@@ -33,11 +33,7 @@ def test_detections(ssh_key_name, private_key, splunk_ip, splunk_password, test_
         uuid_var = str(uuid.uuid4())
         result_test = test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_file, test_index, uuid_test, uuid_var)
         result_tests.append(result_test)
-        if test_index == 10:
-            test_index = 1
-        else:
-            test_index = test_index + 1
-
+        test_index = 1 if test_index == 10 else test_index + 1
         # delete test data
         splunk_sdk.delete_attack_data(splunk_ip, splunk_password)
 
@@ -52,11 +48,11 @@ def test_detections(ssh_key_name, private_key, splunk_ip, splunk_password, test_
 
 def test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_file, test_index, uuid_test, uuid_var):
     try:
-        test_file_obj = load_file("security_content/" + test_file[2:])
+        test_file_obj = load_file(f"security_content/{test_file[2:]}")
     except Exception as e:
-        print('Error: ' + str(e))
+        print(f'Error: {str(e)}')
         return
-    
+
     if not test_file_obj:
         return
     #print(test_file_obj)
@@ -65,22 +61,39 @@ def test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_f
     aws_service.add_detection_results_in_dynamo_db('eu-central-1', uuid_var , uuid_test, test_file_obj['tests'][0]['name'], test_file_obj['tests'][0]['file'], str(int(time.time())))
 
     epoch_time = str(int(time.time()))
-    folder_name = "attack_data_" + epoch_time
+    folder_name = f"attack_data_{epoch_time}"
     os.mkdir(folder_name)
 
     for attack_data in test_file_obj['tests'][0]['attack_data']:
         url = attack_data['data']
         r = requests.get(url, allow_redirects=True)
-        open(folder_name + '/' + attack_data['file_name'], 'wb').write(r.content)
-        print(folder_name + '/' + attack_data['file_name'])
+        open(f'{folder_name}/' + attack_data['file_name'], 'wb').write(r.content)
+        print(f'{folder_name}/' + attack_data['file_name'])
 
         # Update timestamps before replay
-        if 'update_timestamp' in attack_data:
-            if attack_data['update_timestamp'] == True:
-                data_manipulation = DataManipulation()
-                data_manipulation.manipulate_timestamp(folder_name + '/' + attack_data['file_name'], attack_data['sourcetype'], attack_data['source'])
+        if (
+            'update_timestamp' in attack_data
+            and attack_data['update_timestamp'] == True
+        ):
+            data_manipulation = DataManipulation()
+            data_manipulation.manipulate_timestamp(
+                f'{folder_name}/' + attack_data['file_name'],
+                attack_data['sourcetype'],
+                attack_data['source'],
+            )
 
-        replay_attack_dataset(splunk_ip, splunk_password, ssh_key_name, folder_name, 'test' + str(test_index), attack_data['sourcetype'], attack_data['source'], attack_data['file_name'])
+
+        replay_attack_dataset(
+            splunk_ip,
+            splunk_password,
+            ssh_key_name,
+            folder_name,
+            f'test{str(test_index)}',
+            attack_data['sourcetype'],
+            attack_data['source'],
+            attack_data['file_name'],
+        )
+
 
     time.sleep(200)
 
@@ -92,9 +105,11 @@ def test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_f
         for baseline_obj in test['baselines']:
             baseline_file_name = baseline_obj['file']
             baseline = load_file(os.path.join(os.path.dirname(__file__), '../security_content', baseline_file_name))
-            result_obj = dict()
-            result_obj['baseline'] = baseline_obj['name']
-            result_obj['baseline_file'] = baseline_obj['file']
+            result_obj = {
+                'baseline': baseline_obj['name'],
+                'baseline_file': baseline_obj['file'],
+            }
+
             result = splunk_sdk.test_baseline_search(splunk_ip, splunk_password, baseline['search'], baseline_obj['pass_condition'], baseline['name'], baseline_obj['file'], baseline_obj['earliest_time'], baseline_obj['latest_time'])
         result_test['baselines_result'] = results_baselines  
 
@@ -131,13 +146,14 @@ def load_file(file_path):
 def update_ESCU_app(splunk_ip, ssh_key_name, splunk_password):
     print("Update ESCU App. This can take some time")
 
-    ansible_vars = {}
-    ansible_vars['ansible_user'] = 'ubuntu'
-    ansible_vars['ansible_ssh_private_key_file'] = ssh_key_name
-    ansible_vars['splunk_password'] = splunk_password
-    ansible_vars['security_content_path'] = 'security_content'
+    ansible_vars = {
+        'ansible_user': 'ubuntu',
+        'ansible_ssh_private_key_file': ssh_key_name,
+        'splunk_password': splunk_password,
+        'security_content_path': 'security_content',
+    }
 
-    cmdline = "-i %s, -u ubuntu" % (splunk_ip)
+    cmdline = f"-i {splunk_ip}, -u ubuntu"
     runner = ansible_runner.run(private_data_dir=os.path.join(os.path.dirname(__file__), '../'),
                                 cmdline=cmdline,
                                 roles_path=os.path.join(os.path.dirname(__file__), '../ansible/roles'),
@@ -147,17 +163,18 @@ def update_ESCU_app(splunk_ip, ssh_key_name, splunk_password):
 
 
 def replay_attack_dataset(splunk_ip, splunk_password, ssh_key_name, folder_name, index, sourcetype, source, out):
-    ansible_vars = {}
-    ansible_vars['folder_name'] = folder_name
-    ansible_vars['ansible_user'] = 'ubuntu'
-    ansible_vars['ansible_ssh_private_key_file'] = ssh_key_name
-    ansible_vars['splunk_password'] = splunk_password
-    ansible_vars['out'] = out
-    ansible_vars['sourcetype'] = sourcetype
-    ansible_vars['source'] = source
-    ansible_vars['index'] = index
+    ansible_vars = {
+        'folder_name': folder_name,
+        'ansible_user': 'ubuntu',
+        'ansible_ssh_private_key_file': ssh_key_name,
+        'splunk_password': splunk_password,
+        'out': out,
+        'sourcetype': sourcetype,
+        'source': source,
+        'index': index,
+    }
 
-    cmdline = "-i %s, -u ubuntu" % (splunk_ip)
+    cmdline = f"-i {splunk_ip}, -u ubuntu"
     runner = ansible_runner.run(private_data_dir=os.path.join(os.path.dirname(__file__), '../'),
                                 cmdline=cmdline,
                                 roles_path=os.path.join(os.path.dirname(__file__), '../ansible/roles'),

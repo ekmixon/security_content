@@ -28,22 +28,22 @@ def main(args):
 
     if pr_number:
         response = client.submit_job(
-            jobName='detection_testing_' + branch,
+            jobName=f'detection_testing_{branch}',
             jobQueue='detection_testing_execution_queue',
             jobDefinition='detection_testing_execution:2',
             containerOverrides={
                 'command': ['-b', branch, '-u', uuid_test, '-pr', pr_number]
-            }
+            },
         )
+
     else:
         response = client.submit_job(
-            jobName='detection_testing_' + branch,
+            jobName=f'detection_testing_{branch}',
             jobQueue='detection_testing_execution_queue',
             jobDefinition='detection_testing_execution:2',
-            containerOverrides={
-                'command': ['-b', branch, '-u', uuid_test]
-            }
+            containerOverrides={'command': ['-b', branch, '-u', uuid_test]},
         )
+
 
 
     while max_waiting_time > current_waiting_time:
@@ -70,7 +70,7 @@ def main(args):
 
         if len(response['Items']) == 0 or (not test_done):
             time.sleep(60)
-            current_waiting_time = current_waiting_time + 60
+            current_waiting_time += 60
         else:
             test_passed = True
             for item in response['Items']:

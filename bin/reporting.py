@@ -11,11 +11,8 @@ from jinja2 import Environment, FileSystemLoader
 
 
 def load_objects(file_path, REPO_PATH):
-    files = []
     manifest_files = path.join(path.expanduser(REPO_PATH), file_path)
-    for file in sorted(glob.glob(manifest_files)):
-        files.append(load_file(file))
-    return files
+    return [load_file(file) for file in sorted(glob.glob(manifest_files))]
 
 
 def load_file(file_path):
@@ -54,22 +51,21 @@ def main(args):
     counter_detection=0
 
     for detection in detections:
-        if detection['type'] != 'Baseline' and detection['type'] != 'Investigation':
+        if detection['type'] not in ['Baseline', 'Investigation']:
             counter_detection=counter_detection+1
 
-    for test in tests:
+    for _ in tests:
         counter_tests=counter_tests+1
 
     detection_coverage_tmp = counter_detection/counter_tests
-    if detection_coverage_tmp > 1:
-        detection_coverage_tmp = 1
+    detection_coverage_tmp = min(detection_coverage_tmp, 1)
     detection_coverage = "{:.0%}".format(detection_coverage_tmp)
 
-    print("detection count: {}".format(counter_detection))
-    print("test count: {}".format(counter_tests))
-    print("detection_coverage {}".format(detection_coverage))
+    print(f"detection count: {counter_detection}")
+    print(f"test count: {counter_tests}")
+    print(f"detection_coverage {detection_coverage}")
 
-    
+
     TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), 'jinja2_templates')
     OUTPUT_PATH = os.path.join(os.path.dirname(__file__), 'reporting')
     j2_env = Environment(loader=FileSystemLoader(TEMPLATE_PATH), trim_blocks=True) # nosemgrep
@@ -78,14 +74,14 @@ def main(args):
     output = template.render(detection_coverage=detection_coverage)
     with open(output_path, 'w', encoding="utf-8") as f:
         f.write(output)
-    print("writting detection coverage report: {}".format(output_path))
+    print(f"writting detection coverage report: {output_path}")
 
     template = j2_env.get_template('detection_count.j2')
     output_path = path.join(OUTPUT_PATH, 'detection_count.svg')
     output = template.render(detection_count=count_detections_all)
     with open(output_path, 'w', encoding="utf-8") as f:
         f.write(output)
-    print("writting detection count report: {}".format(output_path))
+    print(f"writting detection count report: {output_path}")
 
 
 if __name__ == "__main__":

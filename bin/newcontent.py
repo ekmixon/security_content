@@ -216,7 +216,7 @@ def detection_wizard(security_content_path,type,TEMPLATE_PATH):
     answers['products'] = ['Splunk Enterprise','Splunk Enterprise Security','Splunk Cloud']
     answers['references'] = []
 
-    
+
     # grab some vars for the test
     detection_kind = answers['detection_kind']
 
@@ -225,7 +225,11 @@ def detection_wizard(security_content_path,type,TEMPLATE_PATH):
     template = j2_env.get_template('detection.j2')
     detection_name = answers['detection_name']
     detection_file_name =  detection_name.replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
-    output_path = path.join(security_content_path, 'detections/' + detection_kind + '/' + detection_file_name + '.yml')
+    output_path = path.join(
+        security_content_path,
+        f'detections/{detection_kind}/{detection_file_name}.yml',
+    )
+
     output = template.render(uuid=uuid.uuid1(), date=date.today().strftime('%Y-%m-%d'),
     author=answers['detection_author'], name=answers['detection_name'],
     description='\n\tUPDATE_DESCRIPTION\n\tWHAT IS THIS?\n\tWHAT DOES IT LOOK LIKE?\n\tHOW DO YOU TRIAGE IT?', how_to_implement='UPDATE_HOW_TO_IMPLEMENT', known_false_positives='UPDATE_KNOWN_FALSE_POSITIVES',
@@ -274,27 +278,47 @@ def detection_wizard(security_content_path,type,TEMPLATE_PATH):
     if answers['continue']:
         # and a corresponding test files
         template = j2_env.get_template('test.j2')
-        test_name = detection_file_name + '.test.yml'
-        output_path = path.join(security_content_path, 'tests/' + detection_kind + '/' + test_name)
-        output = template.render(name=detection_name + ' Unit Test',
-        detection_name=detection_name,
-        detection_path= detection_kind + '/' + detection_file_name + '.yml', pass_condition=answers['pass_condition'],
-        earliest_time=answers['earliest_time'], latest_time=answers['latest_time'], file_name='UPDATE_FILE_NAME',
-        splunk_source='UPDATE_SPLUNK_SOURCE',splunk_sourcetype='UPDATE_SPLUNK_SOURCETYPE',dataset_url='UPDATE_DATASET_URL')
-        with open(output_path, 'w', encoding="utf-8") as f:
-            f.write(output)
+        test_name = f'{detection_file_name}.test.yml'
+        output_path = path.join(
+            security_content_path, f'tests/{detection_kind}/{test_name}'
+        )
+
+        output = template.render(
+            name=f'{detection_name} Unit Test',
+            detection_name=detection_name,
+            detection_path=f'{detection_kind}/{detection_file_name}.yml',
+            pass_condition=answers['pass_condition'],
+            earliest_time=answers['earliest_time'],
+            latest_time=answers['latest_time'],
+            file_name='UPDATE_FILE_NAME',
+            splunk_source='UPDATE_SPLUNK_SOURCE',
+            splunk_sourcetype='UPDATE_SPLUNK_SOURCETYPE',
+            dataset_url='UPDATE_DATASET_URL',
+        )
+
     else:
         # and a corresponding test files
         template = j2_env.get_template('test.j2')
-        test_name = detection_file_name + '.test.yml'
-        output_path = path.join(security_content_path, 'tests/' + detection_kind + '/' + test_name)
-        output = template.render(name=detection_name + ' Unit Test',
-        detection_name=detection_name,
-        detection_path=detection_kind + '/' + detection_file_name + '.yml', pass_condition='| stats count | where count > 0',
-        earliest_time='-24h', latest_time='now',file_name='UPDATE_FILE_NAME', splunk_source='UPDATE_SPLUNK_SOURCE',
-        splunk_sourcetype='UPDATE_SPLUNK_SOURCETYPE', dataset_url='UPDATE_DATASET_URL' )
-        with open(output_path, 'w', encoding="utf-8") as f:
-            f.write(output)
+        test_name = f'{detection_file_name}.test.yml'
+        output_path = path.join(
+            security_content_path, f'tests/{detection_kind}/{test_name}'
+        )
+
+        output = template.render(
+            name=f'{detection_name} Unit Test',
+            detection_name=detection_name,
+            detection_path=f'{detection_kind}/{detection_file_name}.yml',
+            pass_condition='| stats count | where count > 0',
+            earliest_time='-24h',
+            latest_time='now',
+            file_name='UPDATE_FILE_NAME',
+            splunk_source='UPDATE_SPLUNK_SOURCE',
+            splunk_sourcetype='UPDATE_SPLUNK_SOURCETYPE',
+            dataset_url='UPDATE_DATASET_URL',
+        )
+
+    with open(output_path, 'w', encoding="utf-8") as f:
+        f.write(output)
     print("\n> contentctl wrote the test for this detection to: {0}\n".format(output_path))
 
 def story_wizard(security_content_path,type, TEMPLATE_PATH):
@@ -376,14 +400,17 @@ def story_wizard(security_content_path,type, TEMPLATE_PATH):
     answers = prompt(questions)
     j2_env = Environment(loader=FileSystemLoader(TEMPLATE_PATH), # nosemgrep
                      trim_blocks=True)
-    
+
 
     template = j2_env.get_template('story.j2')
     answers['products'] = ['Splunk Enterprise','Splunk Enterprise Security','Splunk Cloud']
     answers['references'] = []
     story_name = answers['story_name']
     story_file_name =  story_name.replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
-    output_path = path.join(security_content_path, 'stories/' + story_file_name + '.yml')
+    output_path = path.join(
+        security_content_path, f'stories/{story_file_name}.yml'
+    )
+
     output = template.render(uuid=uuid.uuid1(), date=date.today().strftime('%Y-%m-%d'),
     author=answers['story_author'], name=answers['story_name'], description='UPDATE_DESCRIPTION',
     narrative='UPDATE_NARRATIVE', references=['https://www.destroyallsoftware.com/talks/wat'],analytic_story_name=answers['story_name'],
@@ -402,31 +429,55 @@ def create_example(security_content_path,type, TEMPLATE_PATH):
 
         # write a detection example
         template = j2_env.get_template('detection.j2')
-        detection_name = getpass.getuser() + '_' + type + '.yml.example'
-        output_path = path.join(security_content_path, 'detections/endpoint/' + detection_name)
-        output = template.render(uuid=uuid.uuid1(), date=date.today().strftime('%Y-%m-%d'),
-        author='UPDATE_AUTHOR', name=getpass.getuser().capitalize() + ' ' + type.capitalize(),
-        description='|\n\tUPDATE_DESCRIPTION\n\tWHAT IS THIS?\n\tWHAT DOES IT LOOK LIKE?\n\tHOW DO YOU TRIAGE IT?',
-        how_to_implement='UPDATE_HOW_TO_IMPLENT',
-        known_false_positives='UPDATE_KNOWN_FALSE_POSITIVES',
-        references=['https://html5zombo.com/'],
-        datamodels=['Endpoint'], search='| UPDATE_SPL | `' + getpass.getuser() + '_' + type + '_filter`',
-        type='TTP', analytic_story_name=' UPDATE_STORY_NAME', mitre_attack_id = 'T1003.01',
-        kill_chain_phases=['Exploitation'], dataset_url='UPDATE_DATASET_URL',
-        products=['Splunk Enterprise','Splunk Enterprise Security','Splunk Cloud'])
+        detection_name = f'{getpass.getuser()}_{type}.yml.example'
+        output_path = path.join(
+            security_content_path, f'detections/endpoint/{detection_name}'
+        )
+
+        output = template.render(
+            uuid=uuid.uuid1(),
+            date=date.today().strftime('%Y-%m-%d'),
+            author='UPDATE_AUTHOR',
+            name=f'{getpass.getuser().capitalize()} {type.capitalize()}',
+            description='|\n\tUPDATE_DESCRIPTION\n\tWHAT IS THIS?\n\tWHAT DOES IT LOOK LIKE?\n\tHOW DO YOU TRIAGE IT?',
+            how_to_implement='UPDATE_HOW_TO_IMPLENT',
+            known_false_positives='UPDATE_KNOWN_FALSE_POSITIVES',
+            references=['https://html5zombo.com/'],
+            datamodels=['Endpoint'],
+            search=f'| UPDATE_SPL | `{getpass.getuser()}_{type}_filter`',
+            type='TTP',
+            analytic_story_name=' UPDATE_STORY_NAME',
+            mitre_attack_id='T1003.01',
+            kill_chain_phases=['Exploitation'],
+            dataset_url='UPDATE_DATASET_URL',
+            products=[
+                'Splunk Enterprise',
+                'Splunk Enterprise Security',
+                'Splunk Cloud',
+            ],
+        )
+
         with open(output_path, 'w', encoding="utf-8") as f:
             f.write(output)
         print("contentctl wrote a example detection to: {0}".format(output_path))
 
         # and a corresponding test files
         template = j2_env.get_template('test.j2')
-        test_name = getpass.getuser() + '_' + type + '.test.yml.example'
-        output_path = path.join(security_content_path, 'tests/endpoint/' + test_name)
-        output = template.render(name=getpass.getuser().capitalize() + ' ' + type.capitalize() + ' Unit Test',
-        detection_name=getpass.getuser().capitalize() + ' ' + type.capitalize(),
-        detection_path='endpoint/' + detection_name, pass_condition='| stats count | where count > 0',
-        earliest_time='-24h', latest_time='now', file_name='UPDATE_FILE_NAME', splunk_source='UPDATE_SPLUNK_SOURCE',
-        splunk_sourcetype='UPDATE_SPLUNK_SOURCETYPE',dataset_url='UPDATE_DATASET_URL')
+        test_name = f'{getpass.getuser()}_{type}.test.yml.example'
+        output_path = path.join(security_content_path, f'tests/endpoint/{test_name}')
+        output = template.render(
+            name=f'{getpass.getuser().capitalize()} {type.capitalize()} Unit Test',
+            detection_name=f'{getpass.getuser().capitalize()} {type.capitalize()}',
+            detection_path=f'endpoint/{detection_name}',
+            pass_condition='| stats count | where count > 0',
+            earliest_time='-24h',
+            latest_time='now',
+            file_name='UPDATE_FILE_NAME',
+            splunk_source='UPDATE_SPLUNK_SOURCE',
+            splunk_sourcetype='UPDATE_SPLUNK_SOURCETYPE',
+            dataset_url='UPDATE_DATASET_URL',
+        )
+
         with open(output_path, 'w', encoding="utf-8") as f:
             f.write(output)
         print("contentctl wrote a example test for this detection to: {0}".format(output_path))
@@ -434,14 +485,26 @@ def create_example(security_content_path,type, TEMPLATE_PATH):
     elif type == 'story':
         # write a story example
         template = j2_env.get_template('story.j2')
-        story_name = getpass.getuser() + '_' + type + '.yml.example'
-        output_path = path.join(security_content_path, 'stories/' + story_name)
-        output = template.render(uuid=uuid.uuid1(), date=date.today().strftime('%Y-%m-%d'),
-        author='UPDATE_AUTHOR', name=getpass.getuser().capitalize() + ' ' + type.capitalize(),
-        description='UPDATE_DESCRIPTION',
-        narrative='UPDATE_NARRATIVE',
-        references=['https://www.destroyallsoftware.com/talks/wat'], analytic_story_name=getpass.getuser().capitalize() + ' ' + type.capitalize(),
-        categories=['Adversary Tactics'], usecase='Advanced Threat Detection', products=['Splunk Enterprise','Splunk Enterprise Security','Splunk Cloud'])
+        story_name = f'{getpass.getuser()}_{type}.yml.example'
+        output_path = path.join(security_content_path, f'stories/{story_name}')
+        output = template.render(
+            uuid=uuid.uuid1(),
+            date=date.today().strftime('%Y-%m-%d'),
+            author='UPDATE_AUTHOR',
+            name=f'{getpass.getuser().capitalize()} {type.capitalize()}',
+            description='UPDATE_DESCRIPTION',
+            narrative='UPDATE_NARRATIVE',
+            references=['https://www.destroyallsoftware.com/talks/wat'],
+            analytic_story_name=f'{getpass.getuser().capitalize()} {type.capitalize()}',
+            categories=['Adversary Tactics'],
+            usecase='Advanced Threat Detection',
+            products=[
+                'Splunk Enterprise',
+                'Splunk Enterprise Security',
+                'Splunk Cloud',
+            ],
+        )
+
         with open(output_path, 'w', encoding="utf-8") as f:
             f.write(output)
         print("contentctl wrote a example story to: {0}".format(output_path))

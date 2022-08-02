@@ -69,8 +69,7 @@ def count_detections(matched_techniques):
 def get_all_techniques(projects_path):
     path_cti = path.join(projects_path,'cti/enterprise-attack')
     fs = FileSystemSource(path_cti)
-    all_techniques = get_techniques(fs)
-    return all_techniques
+    return get_techniques(fs)
 
 
 def get_techniques(src):
@@ -89,9 +88,14 @@ def get_matched_techniques(counted_techniques, detections):
         # https://github.com/splunk/security_content
         for detection in detections:
             if 'mitre_attack_id' in detection['object']['tags']:
-                for mitreid in detection['object']['tags']['mitre_attack_id']:
-                    if mitreid == technique["external_references"][0]["external_id"]:
-                        matched_splunk_detections.append(detection)
+                matched_splunk_detections.extend(
+                    detection
+                    for mitreid in detection['object']['tags'][
+                        'mitre_attack_id'
+                    ]
+                    if mitreid
+                    == technique["external_references"][0]["external_id"]
+                )
 
         matched_techniques.append({
             "ID": technique["external_references"][0]["external_id"],
@@ -123,7 +127,7 @@ def generate_navigator_layer(matched_techniques, max_count, output):
                 }
         else:
             layer_technique = {}
-        if len(comments) > 0:
+        if comments:
             layer_technique["comment"] = "\n\n".join(comments)
 
         layer_json["techniques"].append(layer_technique)
@@ -132,8 +136,8 @@ def generate_navigator_layer(matched_techniques, max_count, output):
     # ranging from zero (white) to the maximum score in the file (red)
     layer_json["gradient"] = {
         "colors": [
-			"#ffffff",
-			"#66b1ff",
+    "#ffffff",
+    "#66b1ff",
             "#096ed7"
         ],
         "minValue": 0,
@@ -158,10 +162,10 @@ def generate_navigator_layer(matched_techniques, max_count, output):
             "label": "NO available detections",
             "color": "#ffffff"
         },
-		{
-			"label": "Some detections available",
-			"color": "#66b1ff"
-		}
+    {
+    "label": "Some detections available",
+    "color": "#66b1ff"
+    }
     ]
 
     layer_json['showTacticRowBackground'] = True
@@ -169,7 +173,7 @@ def generate_navigator_layer(matched_techniques, max_count, output):
     layer_json["sorting"] = 3
 
     # output JSON
-    with open(output + '/coverage.json', 'w') as f:
+    with open(f'{output}/coverage.json', 'w') as f:
         json.dump(layer_json, f, indent=4)
 
 #    print("Mitre ATT&CK Navigator overlay was successfully written to output/detections.json")
@@ -179,7 +183,7 @@ def generate_csv_file(matched_techniques, output):
 
     security_content_url = 'https://github.com/splunk/security_content/blob/develop/'
 
-    with open(output + '/coverage.csv', 'w') as f:
+    with open(f'{output}/coverage.csv', 'w') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         writer.writerow(['Technique ID', 'Detection Available', 'Link', 'score'])
 

@@ -88,7 +88,7 @@ def prepare_detection_testing(ssh_key_name, private_key, splunk_ip, splunk_passw
         module = __import__('generate')
         results = module.main(REPO_PATH = 'security_content' , OUTPUT_PATH = 'security_content/dist/escu', PRODUCT = 'ESCU', VERBOSE = 'False' )
     except Exception as e:
-        print('Error: ' + str(e))
+        print(f'Error: {str(e)}')
 
     update_ESCU_app(splunk_ip, ssh_key_name, splunk_password)
 
@@ -98,11 +98,7 @@ def test_detections(ssh_key_name, private_key, splunk_ip, splunk_password, test_
 
     for test_file in test_files:
         test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_file, test_index)
-        if test_index == 10:
-            test_index = 1
-        else:
-            test_index = test_index + 1
-
+        test_index = 1 if test_index == 10 else test_index + 1
         # delete test data
         splunk_sdk.delete_attack_data(splunk_ip, splunk_password)
 
@@ -125,22 +121,39 @@ def test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_f
         return
 
     epoch_time = str(int(time.time()))
-    folder_name = "attack_data_" + epoch_time
+    folder_name = f"attack_data_{epoch_time}"
     os.mkdir(folder_name)
 
     for attack_data in test_file_obj['tests'][0]['attack_data']:
         url = attack_data['data']
         r = requests.get(url, allow_redirects=True)
-        open(folder_name + '/' + attack_data['file_name'], 'wb').write(r.content)
+        open(f'{folder_name}/' + attack_data['file_name'], 'wb').write(r.content)
 
         # Update timestamps before replay
-        if 'update_timestamp' in attack_data:
-            if attack_data['update_timestamp'] == True:
-                data_manipulation = DataManipulation()
-                data_manipulation.manipulate_timestamp(folder_name + '/' + attack_data['file_name'], attack_data['sourcetype'], attack_data['source'])
+        if (
+            'update_timestamp' in attack_data
+            and attack_data['update_timestamp'] == True
+        ):
+            data_manipulation = DataManipulation()
+            data_manipulation.manipulate_timestamp(
+                f'{folder_name}/' + attack_data['file_name'],
+                attack_data['sourcetype'],
+                attack_data['source'],
+            )
+
 
         print("Replay Attack Data")
-        replay_attack_dataset(splunk_ip, splunk_password, ssh_key_name, folder_name, 'test' + str(test_index), attack_data['sourcetype'], attack_data['source'], attack_data['file_name'])
+        replay_attack_dataset(
+            splunk_ip,
+            splunk_password,
+            ssh_key_name,
+            folder_name,
+            f'test{str(test_index)}',
+            attack_data['sourcetype'],
+            attack_data['source'],
+            attack_data['file_name'],
+        )
+
 
     time.sleep(60)
 
@@ -157,7 +170,7 @@ def test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_f
     #         result_obj['baseline_file'] = baseline_obj['file']
     #         result = splunk_sdk.test_baseline_search(splunk_ip, splunk_password, baseline['search'], baseline_obj['pass_condition'], baseline['name'], baseline_obj['file'], baseline_obj['earliest_time'], baseline_obj['latest_time'])
     #     result_test['baselines_result'] = results_baselines  
-    
+
 
     # result_detection = splunk_sdk.test_detection_search(splunk_ip, splunk_password, detection['search'], test['pass_condition'], detection['name'], test['file'], test['earliest_time'], test['latest_time'])
 
@@ -189,7 +202,12 @@ def test_detection(ssh_key_name, private_key, splunk_ip, splunk_password, test_f
             print("S3 upload results")
             s3_client = boto3.client('s3')
             try:
-                response = s3_client.upload_file('test.csv', 'security-content-labeled-data', 'endpoint/' + detection_name + '/' + detection_name + '.csv')
+                response = s3_client.upload_file(
+                    'test.csv',
+                    'security-content-labeled-data',
+                    f'endpoint/{detection_name}/{detection_name}.csv',
+                )
+
             except ClientError as e:
                 print(e)
         except Exception as e:
@@ -219,13 +237,14 @@ def load_file(file_path):
 def update_ESCU_app(splunk_ip, ssh_key_name, splunk_password):
     print("Update ESCU App. This can take some time")
 
-    ansible_vars = {}
-    ansible_vars['ansible_user'] = 'ubuntu'
-    ansible_vars['ansible_ssh_private_key_file'] = ssh_key_name
-    ansible_vars['splunk_password'] = splunk_password
-    ansible_vars['security_content_path'] = 'security_content'
+    ansible_vars = {
+        'ansible_user': 'ubuntu',
+        'ansible_ssh_private_key_file': ssh_key_name,
+        'splunk_password': splunk_password,
+        'security_content_path': 'security_content',
+    }
 
-    cmdline = "-i %s, -u ubuntu" % (splunk_ip)
+    cmdline = f"-i {splunk_ip}, -u ubuntu"
     runner = ansible_runner.run(private_data_dir=os.path.join(os.path.dirname(__file__), '../'),
                                 cmdline=cmdline,
                                 roles_path=os.path.join(os.path.dirname(__file__), '../ansible/roles'),
@@ -235,17 +254,18 @@ def update_ESCU_app(splunk_ip, ssh_key_name, splunk_password):
 
 
 def replay_attack_dataset(splunk_ip, splunk_password, ssh_key_name, folder_name, index, sourcetype, source, out):
-    ansible_vars = {}
-    ansible_vars['folder_name'] = folder_name
-    ansible_vars['ansible_user'] = 'ubuntu'
-    ansible_vars['ansible_ssh_private_key_file'] = ssh_key_name
-    ansible_vars['splunk_password'] = splunk_password
-    ansible_vars['out'] = out
-    ansible_vars['sourcetype'] = sourcetype
-    ansible_vars['source'] = source
-    ansible_vars['index'] = index
+    ansible_vars = {
+        'folder_name': folder_name,
+        'ansible_user': 'ubuntu',
+        'ansible_ssh_private_key_file': ssh_key_name,
+        'splunk_password': splunk_password,
+        'out': out,
+        'sourcetype': sourcetype,
+        'source': source,
+        'index': index,
+    }
 
-    cmdline = "-i %s, -u ubuntu" % (splunk_ip)
+    cmdline = f"-i {splunk_ip}, -u ubuntu"
     runner = ansible_runner.run(private_data_dir=os.path.join(os.path.dirname(__file__), '../'),
                                 cmdline=cmdline,
                                 roles_path=os.path.join(os.path.dirname(__file__), '../ansible/roles'),
@@ -255,25 +275,22 @@ def replay_attack_dataset(splunk_ip, splunk_password, ssh_key_name, folder_name,
 
 def modify_detection(splunk_search):
 
-    if splunk_search.startswith('| tstats'):
-        if "from datamodel=Endpoint.Processes" in splunk_search:
-            regex1 = r'where ([^\|]*)'
-            a = re.search(regex1, splunk_search)
-            search1 = ""
-            if a:
-                search1 = str(TSTATS_SEARCH + a.group(1))
-            else:
-                search1 = "ERROR" 
+    if (
+        not splunk_search.startswith('| tstats')
+        or "from datamodel=Endpoint.Processes" not in splunk_search
+    ):
+        return "ERROR", "ERROR"
+    regex1 = r'where ([^\|]*)'
+    a = re.search(regex1, splunk_search)
+    search1 = ""
+    search1 = str(TSTATS_SEARCH + a[1]) if a else "ERROR"
+    regex2 = r'where (.*)by ([^\|]+)'
+    b = re.search(regex2, splunk_search)
+    search2 = ""
+    if b:
+        search2 = TSTATS_INVERSE_SEARCH.replace("_replace1_", b[1])
+        search2 = search2.replace("_replace2_", b[2])
+    else:
+        search2 = "ERROR"         
 
-            regex2 = r'where (.*)by ([^\|]+)'
-            b = re.search(regex2, splunk_search)
-            search2 = ""
-            if b:
-                search2 = TSTATS_INVERSE_SEARCH.replace("_replace1_", b.group(1))
-                search2 = search2.replace("_replace2_", b.group(2))
-            else:
-                search2 = "ERROR"         
-
-            return search1, search2
-
-    return "ERROR", "ERROR"
+    return search1, search2

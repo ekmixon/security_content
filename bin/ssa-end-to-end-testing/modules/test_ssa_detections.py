@@ -44,7 +44,7 @@ class SSADetectionTesting:
         ]
 
         test_results = []
-        for i in range(0, len(test_spls)):
+        for i in range(len(test_spls)):
             self.max_execution_time = MAX_EXECUTION_TIME_LIMIT
             test_result = self.ssa_detection_test(read_spl(file_path_spl, test_spls[i]), file_path_data, test_names[i])
             test_results.append(test_result.copy())
@@ -66,20 +66,18 @@ class SSADetectionTesting:
         self.max_execution_time = MAX_EXECUTION_TIME_LIMIT
         file_path_attack_data = test_obj["attack_data_file_path"]
 
-        test_results = self.ssa_detection_test(test_obj["detection_obj"]["search"], file_path_attack_data,
-                                               "SSA Smoke Test " + test_obj["test_obj"]["name"],
-                                               test_obj['test_obj']['tests'][0]['pass_condition'])
-
-        return test_results
+        return self.ssa_detection_test(
+            test_obj["detection_obj"]["search"],
+            file_path_attack_data,
+            "SSA Smoke Test " + test_obj["test_obj"]["name"],
+            test_obj['test_obj']['tests'][0]['pass_condition'],
+        )
 
     ## Helper Functions ##
 
     def update_execution_time(self, time_frame):
         self.max_execution_time = self.max_execution_time - WAIT_CYCLE
-        if self.max_execution_time < 0:
-            return True
-        else:
-            return False
+        return self.max_execution_time < 0
 
     def wait_time(self, time_in_s):
         time.sleep(time_in_s)
@@ -141,7 +139,10 @@ class SSADetectionTesting:
 
         if not check_ssa_spl:
             msg = f"Detection test successful for {test_name}"
-            LOGGER.warning(f"Test not completed. Detection seems deprecated, and will not send messages to SSA")
+            LOGGER.warning(
+                "Test not completed. Detection seems deprecated, and will not send messages to SSA"
+            )
+
             self.test_results["msg"] = msg
             return self.test_results
 
@@ -162,7 +163,7 @@ class SSADetectionTesting:
             max_execution_time_reached = self.wait_time(WAIT_CYCLE)
             query = f"from indexes('{self.results_index['name']}') | search source!=\"Search Catalog\" "
             sid = self.api.submit_search_job(self.results_index['module'], query)
-            assert sid is not None, f"Failed to create a Search Job"
+            assert sid is not None, "Failed to create a Search Job"
 
             job_finished = False
             while not job_finished:
@@ -201,7 +202,11 @@ class SSADetectionTesting:
         delete_index = lambda p: self.api.delete_temp_index(p["id"]) == HTTPStatus.NO_CONTENT
         self.activated_pipelines = [p for p in self.activated_pipelines if not deactivate_pipeline(p)]
         self.created_pipelines = [p for p in self.created_pipelines if not delete_pipeline(p)]
-        if len(self.activated_pipelines) > 0 or len(self.created_pipelines) > 0 or not delete_index(self.results_index):
+        if (
+            self.activated_pipelines
+            or self.created_pipelines
+            or not delete_index(self.results_index)
+        ):
             LOGGER.warning("Not all SCS resources freed up")
             LOGGER.info(f"Created Pipelines: {','.join(self.created_pipelines)}")
             LOGGER.info(f"Active Pipelines: {','.join(self.activated_pipelines)}")

@@ -8,11 +8,8 @@ from os import path
 
 
 def load_objects(file_path, REPO_PATH):
-    files = []
     manifest_files = path.join(path.expanduser(REPO_PATH), file_path)
-    for file in sorted(glob.glob(manifest_files)):
-        files.append(load_file(file))
-    return files
+    return [load_file(file) for file in sorted(glob.glob(manifest_files))]
 
 
 def load_file(file_path):
@@ -65,7 +62,6 @@ if __name__ == "__main__":
     parser.add_argument("-np", "--new_project", required=True, help="the security content project to write the new configs in to")
     parser.add_argument("-op", "--old_project", required=True, help="the security content project to read the files from")
     parser.add_argument("-c", "--change", required=True, help="the name of your change")
-
    # parse them
     args = parser.parse_args()
     new_project = args.new_project

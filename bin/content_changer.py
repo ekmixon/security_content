@@ -10,19 +10,16 @@ from urllib3.exceptions import InsecureRequestWarning
 
 from os import path
 
-BASE_URL = f"https://ip:8089"
-SEARCH_PARSER_ENDPOINT = f"/services/search/parser"
-USER = f"admin"
-PASSWORD = f"password"
-parsed_fields = dict()
+BASE_URL = "https://ip:8089"
+SEARCH_PARSER_ENDPOINT = "/services/search/parser"
+USER = "admin"
+PASSWORD = "password"
+parsed_fields = {}
 
 
 def load_objects(file_path, REPO_PATH):
-    files = []
     manifest_files = path.join(path.expanduser(REPO_PATH), file_path)
-    for file in sorted(glob.glob(manifest_files)):
-        files.append(load_file(file))
-    return files
+    return [load_file(file) for file in sorted(glob.glob(manifest_files))]
 
 
 def load_file(file_path):
@@ -56,7 +53,10 @@ def analysis_detection(detections):
             call_splunk_parser_api(detection)
 
     # sort parsed fields by occurence
-    sorted_dict = {k: v for k, v in sorted(parsed_fields.items(), key=lambda item: item[1], reverse=True)}
+    sorted_dict = dict(
+        sorted(parsed_fields.items(), key=lambda item: item[1], reverse=True)
+    )
+
 
     with open('output_fields_ordered_by_usage.csv', mode='w') as csv_file:
         writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
@@ -110,12 +110,12 @@ def parse_commands(api_response):
             last_stat_command = command
         if (command['command'] == 'rename') and last_stat_command:
             rename_command_after_stats_arr.append(command)
-        
+
 
     if not last_stat_command:
         print('ERROR: could not find stats table or tasts command')
         return
-        
+
     # last command table
     if last_stat_command['command'] == 'table':
         matches = re.findall(r'([0-9a-zA-Z_]+)', last_stat_command['rawargs'])
@@ -127,21 +127,19 @@ def parse_commands(api_response):
 
     # last command stats
     if last_stat_command['command'] == 'stats':
-        match = re.match(r'(.*)by', last_stat_command['rawargs'])
-        if match:
-            args_one = match.group(1)
-            matches = re.findall(r'(?:min|max|values)\(([0-9a-zA-Z_]+)\)', args_one)
-            if matches:
+        if match := re.match(r'(.*)by', last_stat_command['rawargs']):
+            args_one = match[1]
+            if matches := re.findall(
+                r'(?:min|max|values)\(([0-9a-zA-Z_]+)\)', args_one
+            ):
                 for match in matches:
                     if match in tmp_parsed_fields:
                         tmp_parsed_fields[match] = tmp_parsed_fields[match] + 1
                     else:
                         tmp_parsed_fields[match] = 1
-        match = re.match(r'.*by(.*)$', last_stat_command['rawargs'])
-        if match:
-            args_two = match.group(1)
-            matches = re.findall(r'([0-9a-zA-Z_]+)', args_two)
-            if matches:
+        if match := re.match(r'.*by(.*)$', last_stat_command['rawargs']):
+            args_two = match[1]
+            if matches := re.findall(r'([0-9a-zA-Z_]+)', args_two):
                 for match in matches:
                     if match in tmp_parsed_fields:
                         tmp_parsed_fields[match] = tmp_parsed_fields[match] + 1
@@ -150,37 +148,42 @@ def parse_commands(api_response):
 
     # tstats command
     if last_stat_command['command'] == 'tstats':
-        match = re.match(r'(.*)(?:from|FROM)', last_stat_command['rawargs'])
-        if match:
-            args_one = match.group(1)
-            matches = re.findall(r'(?:min|max|values)\(([0-9a-zA-Z_]+)\.([0-9a-zA-Z_]+)\)', args_one)
-            if matches:
+        if match := re.match(
+            r'(.*)(?:from|FROM)', last_stat_command['rawargs']
+        ):
+            args_one = match[1]
+            if matches := re.findall(
+                r'(?:min|max|values)\(([0-9a-zA-Z_]+)\.([0-9a-zA-Z_]+)\)',
+                args_one,
+            ):
                 for match in matches:
-                    field = match[0] + '.' + match[1]
+                    field = f'{match[0]}.{match[1]}'
                     if field in tmp_parsed_fields:
                         tmp_parsed_fields[field] = tmp_parsed_fields[field] + 1
                     else:
                         tmp_parsed_fields[field] = 1    
 
-        match = re.match(r'.*by(.*)$', last_stat_command['rawargs'])
-        if match:
-            args_two = match.group(1)
-            matches = re.findall(r'([0-9_a-zA-Z]+)\.([0-9a-zA-Z_]+)', args_two)
-            if matches:
+        if match := re.match(r'.*by(.*)$', last_stat_command['rawargs']):
+            args_two = match[1]
+            if matches := re.findall(
+                r'([0-9_a-zA-Z]+)\.([0-9a-zA-Z_]+)', args_two
+            ):
                 for match in matches:
-                    field = match[0] + '.' + match[1]
+                    field = f'{match[0]}.{match[1]}'
                     if field in tmp_parsed_fields:
                         tmp_parsed_fields[field] = tmp_parsed_fields[field] + 1
                     else:
                         tmp_parsed_fields[field] = 1    
 
-        match = re.match(r'.*where(.*)by.*$', last_stat_command['rawargs'])
-        if match:
-            args_three = match.group(1)
-            matches = re.findall(r'([0-9_a-zA-Z]+)\.([0-9a-zA-Z_]+)=', args_three)
-            if matches:
+        if match := re.match(
+            r'.*where(.*)by.*$', last_stat_command['rawargs']
+        ):
+            args_three = match[1]
+            if matches := re.findall(
+                r'([0-9_a-zA-Z]+)\.([0-9a-zA-Z_]+)=', args_three
+            ):
                 for match in matches:
-                    field = match[0] + '.' + match[1]
+                    field = f'{match[0]}.{match[1]}'
                     if field in tmp_parsed_fields:
                         tmp_parsed_fields[field] = tmp_parsed_fields[field] + 1
                     else:

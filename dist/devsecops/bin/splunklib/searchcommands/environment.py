@@ -70,10 +70,12 @@ def configure_logging(logger_name, filename=None):
             probing_paths = [path.join('local', 'logging.conf'), path.join('default', 'logging.conf')]
         else:
             probing_paths = [
-                path.join('local', logger_name + '.logging.conf'),
-                path.join('default', logger_name + '.logging.conf'),
+                path.join('local', f'{logger_name}.logging.conf'),
+                path.join('default', f'{logger_name}.logging.conf'),
                 path.join('local', 'logging.conf'),
-                path.join('default', 'logging.conf')]
+                path.join('default', 'logging.conf'),
+            ]
+
         for relative_path in probing_paths:
             configuration_file = path.join(app_root, relative_path)
             if path.exists(configuration_file):
@@ -88,9 +90,12 @@ def configure_logging(logger_name, filename=None):
                 found = True
                 break
         if not found:
-            raise ValueError('Logging configuration file "{}" not found in local or default directory'.format(filename))
+            raise ValueError(
+                f'Logging configuration file "{filename}" not found in local or default directory'
+            )
+
     elif not path.exists(filename):
-        raise ValueError('Logging configuration file "{}" not found'.format(filename))
+        raise ValueError(f'Logging configuration file "{filename}" not found')
 
     if filename is not None:
         global _current_logging_configuration_file

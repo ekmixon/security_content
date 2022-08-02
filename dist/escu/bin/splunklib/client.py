@@ -58,6 +58,7 @@ attributes, and methods that are specific to each kind of entity. For example::
     my_app.package()  # Creates a compressed package of this application
 """
 
+
 import contextlib
 import datetime
 import json
@@ -112,7 +113,7 @@ XNAMEF_ATOM = "{http://www.w3.org/2005/Atom}%s"
 XNAME_ENTRY = XNAMEF_ATOM % "entry"
 XNAME_CONTENT = XNAMEF_ATOM % "content"
 
-MATCH_ENTRY_CONTENT = "%s/%s/*" % (XNAME_ENTRY, XNAME_CONTENT)
+MATCH_ENTRY_CONTENT = f"{XNAME_ENTRY}/{XNAME_CONTENT}/*"
 
 
 class IllegalOperationException(Exception):
@@ -177,21 +178,22 @@ def _trailing(template, *targets):
     for t in targets:
         n = s.find(t)
         if n == -1:
-            raise ValueError("Target " + t + " not found in template.")
+            raise ValueError(f"Target {t} not found in template.")
         s = s[n + len(t):]
     return s
 
 
 # Filter the given state content record according to the given arg list.
 def _filter_content(content, *args):
-    if len(args) > 0:
+    if args:
         return record((k, content[k]) for k in args)
     return record((k, v) for k, v in six.iteritems(content)
         if k not in ['eai:acl', 'eai:attributes', 'type'])
 
 # Construct a resource path from the given base path + resource name
 def _path(base, name):
-    if not base.endswith('/'): base = base + '/'
+    if not base.endswith('/'):
+        base = f'{base}/'
     return base + name
 
 
@@ -211,16 +213,11 @@ def _load_atom_entries(response):
         if r.feed.get('totalResults') in [0, '0']:
             return []
         entries = r.feed.get('entry', None)
-        if entries is None: return None
-        return entries if isinstance(entries, list) else [entries]
-    # Unlike most other endpoints, the jobs endpoint does not return
-    # its state wrapped in another element, but at the top level.
-    # For example, in XML, it returns <entry>...</entry> instead of
-    # <feed><entry>...</entry></feed>.
     else:
         entries = r.get('entry', None)
-        if entries is None: return None
-        return entries if isinstance(entries, list) else [entries]
+
+    if entries is None: return None
+    return entries if isinstance(entries, list) else [entries]
 
 
 # Load the sid from the body of the given response
@@ -566,7 +563,10 @@ class Service(_BaseService):
         :param timeout: A timeout period, in seconds.
         :type timeout: ``integer``
         """
-        msg = { "value": "Restart requested by " + self.username + "via the Splunk SDK for Python"}
+        msg = {
+            "value": f"Restart requested by {self.username}via the Splunk SDK for Python"
+        }
+
         # This message will be deleted once the server actually restarts.
         self.messages.create(name="restart_required", **msg)
         result = self.post("/services/server/control/restart")
@@ -593,14 +593,14 @@ class Service(_BaseService):
         response = self.get("messages").body.read()
         messages = data.load(response)['feed']
         if 'entry' not in messages:
-            result = False
-        else:
-            if isinstance(messages['entry'], dict):
-                titles = [messages['entry']['title']]
-            else:
-                titles = [x['title'] for x in messages['entry']]
-            result = 'restart_required' in titles
-        return result
+            return False
+        titles = (
+            [messages['entry']['title']]
+            if isinstance(messages['entry'], dict)
+            else [x['title'] for x in messages['entry']]
+        )
+
+        return 'restart_required' in titles
 
     @property
     def roles(self):
@@ -670,7 +670,7 @@ class Service(_BaseService):
         :return: A ``tuple`` of ``integers``.
         """
         if self._splunk_version is None:
-            self._splunk_version = tuple([int(p) for p in self.info['version'].split('.')])
+            self._splunk_version = tuple(int(p) for p in self.info['version'].split('.'))
         return self._splunk_version
 
     @property
@@ -699,7 +699,7 @@ class Endpoint(object):
     """
     def __init__(self, service, path):
         self.service = service
-        self.path = path if path.endswith('/') else path + '/'
+        self.path = path if path.endswith('/') else f'{path}/'
 
     def get(self, path_segment="", owner=None, app=None, sharing=None, **query):
         """Performs a GET operation on the path segment relative to this endpoint.
@@ -929,8 +929,8 @@ class Entity(Endpoint):
         Makes no roundtrips to the server.
         """
         raise IncomparableException(
-            "Equality is undefined for objects of class %s" % \
-                self.__class__.__name__)
+            f"Equality is undefined for objects of class {self.__class__.__name__}"
+        )
 
     def __getattr__(self, key):
         # Called when an attribute was not found by the normal method. In this
@@ -953,7 +953,10 @@ class Entity(Endpoint):
     def _load_atom_entry(self, response):
         elem = _load_atom(response, XNAME_ENTRY)
         if isinstance(elem, list):
-            raise AmbiguousReferenceException("Fetch from server returned multiple entries for name %s." % self.name)
+            raise AmbiguousReferenceException(
+                f"Fetch from server returned multiple entries for name {self.name}."
+            )
+
         else:
             return elem.entry
 
@@ -988,17 +991,16 @@ class Entity(Endpoint):
         :param sharing:
         :return:
         """
-        if owner is None and app is None and sharing is None: # No namespace provided
-            if self._state is not None and 'access' in self._state:
-                return (self._state.access.owner,
-                        self._state.access.app,
-                        self._state.access.sharing)
-            else:
-                return (self.service.namespace['owner'],
-                        self.service.namespace['app'],
-                        self.service.namespace['sharing'])
-        else:
+        if owner is not None or app is not None or sharing is not None:
             return (owner,app,sharing)
+        if self._state is not None and 'access' in self._state:
+            return (self._state.access.owner,
+                    self._state.access.app,
+                    self._state.access.sharing)
+        else:
+            return (self.service.namespace['owner'],
+                    self.service.namespace['app'],
+                    self.service.namespace['sharing'])
 
     def delete(self):
         owner, app, sharing = self._proper_namespace()
@@ -1033,10 +1035,7 @@ class Entity(Endpoint):
             search = s.apps['search']
             search.refresh()
         """
-        if state is not None:
-            self._state = state
-        else:
-            self._state = self.read(self.get())
+        self._state = state if state is not None else self.read(self.get())
         return self
 
     @property
@@ -1272,8 +1271,7 @@ class ReadOnlyCollection(Endpoint):
                 print "Saved search named %s" % entity.name
         """
 
-        for item in self.iter(**kwargs):
-            yield item
+        yield from self.iter(**kwargs)
 
     def __len__(self):
         """Enable ``len(...)`` for ``Collection`` objects.
@@ -1439,8 +1437,7 @@ class ReadOnlyCollection(Endpoint):
             items = self._load_list(response)
             N = len(items)
             fetched += N
-            for item in items:
-                yield item
+            yield from items
             if pagesize is None or N < pagesize:
                 break
             offset += N
@@ -1555,7 +1552,7 @@ class Collection(ReadOnlyCollection):
             new_app = applications.create("my_fake_app")
         """
         if not isinstance(name, six.string_types):
-            raise InvalidNameException("%s is not a valid name for an entity." % name)
+            raise InvalidNameException(f"{name} is not a valid name for an entity.")
         if 'namespace' in params:
             namespace = params.pop('namespace')
             params['owner'] = namespace.owner
@@ -1567,14 +1564,9 @@ class Collection(ReadOnlyCollection):
             # This endpoint doesn't return the content of the new
             # item. We have to go fetch it ourselves.
             return self[name]
-        else:
-            entry = atom.entry
-            state = _parse_atom_entry(entry)
-            entity = self.item(
-                self.service,
-                self._entity_path(state),
-                state=state)
-            return entity
+        entry = atom.entry
+        state = _parse_atom_entry(entry)
+        return self.item(self.service, self._entity_path(state), state=state)
 
     def delete(self, name, **params):
         """Deletes a specified entity from the collection.
@@ -1614,7 +1606,7 @@ class Collection(ReadOnlyCollection):
             # has already been deleted, and we reraise it as a
             # KeyError.
             if he.status == 404:
-                raise KeyError("No such entity %s" % name)
+                raise KeyError(f"No such entity {name}")
             else:
                 raise
         return self
@@ -1738,14 +1730,16 @@ class Configurations(Collection):
         # a ConfigurationFile (which is a Collection) instead of some
         # Entity.
         if not isinstance(name, six.string_types):
-            raise ValueError("Invalid name: %s" % repr(name))
+            raise ValueError(f"Invalid name: {repr(name)}")
         response = self.post(__conf=name)
         if response.status == 303:
             return self[name]
         elif response.status == 201:
             return ConfigurationFile(self.service, PATH_CONF % name, item=Stanza, state={'title': name})
         else:
-            raise ValueError("Unexpected status code %s returned from creating a stanza" % response.status)
+            raise ValueError(
+                f"Unexpected status code {response.status} returned from creating a stanza"
+            )
 
     def delete(self, key):
         """Raises `IllegalOperationException`."""
@@ -1785,7 +1779,7 @@ class StoragePassword(Entity):
     """This class contains a storage password.
     """
     def __init__(self, service, path, **kwargs):
-        state = kwargs.get('state', None)
+        state = kwargs.get('state')
         kwargs['skip_refresh'] = kwargs.get('skip_refresh', state is not None)
         super(StoragePassword, self).__init__(service, path, **kwargs)
         self._state = state
@@ -1832,7 +1826,7 @@ class StoragePasswords(Collection):
         :return: The :class:`StoragePassword` object created.
         """
         if not isinstance(username, six.string_types):
-            raise ValueError("Invalid name: %s" % repr(username))
+            raise ValueError(f"Invalid name: {repr(username)}")
 
         if realm is None:
             response = self.post(password=password, name=username)
@@ -1840,13 +1834,16 @@ class StoragePasswords(Collection):
             response = self.post(password=password, realm=realm, name=username)
 
         if response.status != 201:
-            raise ValueError("Unexpected status code %s returned from creating a stanza" % response.status)
+            raise ValueError(
+                f"Unexpected status code {response.status} returned from creating a stanza"
+            )
+
 
         entries = _load_atom_entries(response)
         state = _parse_atom_entry(entries[0])
-        storage_password = StoragePassword(self.service, self._entity_path(state), state=state, skip_refresh=True)
-
-        return storage_password
+        return StoragePassword(
+            self.service, self._entity_path(state), state=state, skip_refresh=True
+        )
 
     def delete(self, username, realm=None):
         """Delete a storage password by username and/or realm.
@@ -1869,11 +1866,12 @@ class StoragePasswords(Collection):
             name = username
         else:
             # Encode each component separately
-            name = UrlEncoded(realm, encode_slash=True) + ":" + UrlEncoded(username, encode_slash=True)
+            name = f"{UrlEncoded(realm, encode_slash=True)}:{UrlEncoded(username, encode_slash=True)}"
+
 
         # Append the : expected at the end of the name
         if name[-1] != ":":
-            name = name + ":"
+            name = f"{name}:"
         return Collection.delete(self, name)
 
 
@@ -1955,10 +1953,14 @@ class Index(Entity):
         if host is not None: args['host'] = host
         if source is not None: args['source'] = source
         if sourcetype is not None: args['sourcetype'] = sourcetype
-        path = UrlEncoded(PATH_RECEIVERS_STREAM + "?" + urllib.parse.urlencode(args), skip_encode=True)
+        path = UrlEncoded(
+            f"{PATH_RECEIVERS_STREAM}?{urllib.parse.urlencode(args)}",
+            skip_encode=True,
+        )
+
 
         cookie_or_auth_header = "Authorization: Splunk %s\r\n" % \
-                                (self.service.token if self.service.token is _NoAuthenticationToken
+                                    (self.service.token if self.service.token is _NoAuthenticationToken
                                  else self.service.token.replace("Splunk ", ""))
 
         # If we have cookie(s), use them instead of "Authorization: ..."
@@ -2033,7 +2035,7 @@ class Index(Entity):
         was_disabled_initially = self.disabled
         try:
             if (not was_disabled_initially and \
-                self.service.splunk_version < (5,)):
+                    self.service.splunk_version < (5,)):
                 # Need to disable the index first on Splunk 4.x,
                 # but it doesn't work to disable it on 5.0.
                 self.disable()
@@ -2048,12 +2050,15 @@ class Index(Entity):
                 self.refresh()
 
             if self.content.totalEventCount != '0':
-                raise OperationError("Cleaning index %s took longer than %s seconds; timing out." % (self.name, timeout))
+                raise OperationError(
+                    f"Cleaning index {self.name} took longer than {timeout} seconds; timing out."
+                )
+
         finally:
             # Restore original values
             self.update(maxTotalDataSizeMB=tds, frozenTimePeriodInSecs=ftp)
             if (not was_disabled_initially and \
-                self.service.splunk_version < (5,)):
+                    self.service.splunk_version < (5,)):
                 # Re-enable the index if it was originally enabled and we messed with it.
                 self.enable()
 
@@ -2129,7 +2134,7 @@ class Input(Entity):
             path_segments = path.split('/')
             i = path_segments.index('inputs') + 1
             if path_segments[i] == 'tcp':
-                self.kind = path_segments[i] + '/' + path_segments[i+1]
+                self.kind = f'{path_segments[i]}/{path_segments[i+1]}'
             else:
                 self.kind = path_segments[i]
         else:
@@ -2152,32 +2157,29 @@ class Input(Entity):
         :return: The input this method was called on.
         :rtype: class:`Input`
         """
-        # UDP and TCP inputs require special handling due to their restrictToHost
-        # field. For all other inputs kinds, we can dispatch to the superclass method.
         if self.kind not in ['tcp', 'splunktcp', 'tcp/raw', 'tcp/cooked', 'udp']:
             return super(Input, self).update(**kwargs)
-        else:
-            # The behavior of restrictToHost is inconsistent across input kinds and versions of Splunk.
-            # In Splunk 4.x, the name of the entity is only the port, independent of the value of
-            # restrictToHost. In Splunk 5.0 this changed so the name will be of the form <restrictToHost>:<port>.
-            # In 5.0 and 5.0.1, if you don't supply the restrictToHost value on every update, it will
-            # remove the host restriction from the input. As of 5.0.2 you simply can't change restrictToHost
-            # on an existing input.
+        # The behavior of restrictToHost is inconsistent across input kinds and versions of Splunk.
+        # In Splunk 4.x, the name of the entity is only the port, independent of the value of
+        # restrictToHost. In Splunk 5.0 this changed so the name will be of the form <restrictToHost>:<port>.
+        # In 5.0 and 5.0.1, if you don't supply the restrictToHost value on every update, it will
+        # remove the host restriction from the input. As of 5.0.2 you simply can't change restrictToHost
+        # on an existing input.
 
-            # The logic to handle all these cases:
-            # - Throw an exception if the user tries to set restrictToHost on an existing input
-            #   for *any* version of Splunk.
-            # - Set the existing restrictToHost value on the update args internally so we don't
-            #   cause it to change in Splunk 5.0 and 5.0.1.
-            to_update = kwargs.copy()
+        # The logic to handle all these cases:
+        # - Throw an exception if the user tries to set restrictToHost on an existing input
+        #   for *any* version of Splunk.
+        # - Set the existing restrictToHost value on the update args internally so we don't
+        #   cause it to change in Splunk 5.0 and 5.0.1.
+        to_update = kwargs.copy()
 
-            if 'restrictToHost' in kwargs:
-                raise IllegalOperationException("Cannot set restrictToHost on an existing input with the SDK.")
-            elif 'restrictToHost' in self._state.content and self.kind != 'udp':
-                to_update['restrictToHost'] = self._state.content['restrictToHost']
+        if 'restrictToHost' in kwargs:
+            raise IllegalOperationException("Cannot set restrictToHost on an existing input with the SDK.")
+        elif 'restrictToHost' in self._state.content and self.kind != 'udp':
+            to_update['restrictToHost'] = self._state.content['restrictToHost']
 
-            # Do the actual update operation.
-            return super(Input, self).update(**to_update)
+        # Do the actual update operation.
+        return super(Input, self).update(**to_update)
 
 
 # Inputs is a "kinded" collection, which is a heterogenous collection where
@@ -2201,10 +2203,13 @@ class Inputs(Collection):
             key, kind = key
             key = UrlEncoded(key, encode_slash=True)
             try:
-                response = self.get(self.kindpath(kind) + "/" + key)
+                response = self.get(f"{self.kindpath(kind)}/{key}")
                 entries = self._load_list(response)
                 if len(entries) > 1:
-                    raise AmbiguousReferenceException("Found multiple inputs of kind %s named %s." % (kind, key))
+                    raise AmbiguousReferenceException(
+                        f"Found multiple inputs of kind {kind} named {key}."
+                    )
+
                 elif len(entries) == 0:
                     raise KeyError((key, kind))
                 else:
@@ -2221,20 +2226,22 @@ class Inputs(Collection):
             key = UrlEncoded(key, encode_slash=True)
             for kind in self.kinds:
                 try:
-                    response = self.get(kind + "/" + key)
+                    response = self.get(f"{kind}/{key}")
                     entries = self._load_list(response)
                     if len(entries) > 1:
-                        raise AmbiguousReferenceException("Found multiple inputs of kind %s named %s." % (kind, key))
-                    elif len(entries) == 0:
-                        pass
-                    else:
+                        raise AmbiguousReferenceException(
+                            f"Found multiple inputs of kind {kind} named {key}."
+                        )
+
+                    elif len(entries) != 0:
                         if candidate is not None: # Already found at least one candidate
-                            raise AmbiguousReferenceException("Found multiple inputs named %s, please specify a kind" % key)
+                            raise AmbiguousReferenceException(
+                                f"Found multiple inputs named {key}, please specify a kind"
+                            )
+
                         candidate = entries[0]
                 except HTTPError as he:
-                    if he.status == 404:
-                        pass # Just carry on to the next kind.
-                    else:
+                    if he.status != 404:
                         raise
             if candidate is None:
                 raise KeyError(key) # Never found a match.
@@ -2255,16 +2262,12 @@ class Inputs(Collection):
             # on the first hit.
             for kind in self.kinds:
                 try:
-                    response = self.get(self.kindpath(kind) + "/" + key)
+                    response = self.get(f"{self.kindpath(kind)}/{key}")
                     entries = self._load_list(response)
                     if len(entries) > 0:
                         return True
-                    else:
-                        pass
                 except HTTPError as he:
-                    if he.status == 404:
-                        pass # Just carry on to the next kind.
-                    else:
+                    if he.status != 404:
                         raise
             return False
 
@@ -2315,9 +2318,11 @@ class Inputs(Collection):
         name = UrlEncoded(name, encode_slash=True)
         path = _path(
             self.path + kindpath,
-            '%s:%s' % (kwargs['restrictToHost'], name) \
-                if 'restrictToHost' in kwargs else name
-                )
+            f"{kwargs['restrictToHost']}:{name}"
+            if 'restrictToHost' in kwargs
+            else name,
+        )
+
         return Input(self.service, path, kind)
 
     def delete(self, name, kind=None):
@@ -2387,7 +2392,7 @@ class Inputs(Collection):
         :return: The metadata.
         :rtype: class:``splunklib.data.Record``
         """
-        response = self.get("%s/_new" % self._kindmap[kind])
+        response = self.get(f"{self._kindmap[kind]}/_new")
         content = _load_atom(response, MATCH_ENTRY_CONTENT)
         return _parse_atom_metadata(content)
 
@@ -2513,7 +2518,7 @@ class Inputs(Collection):
         :return: A list of input kinds.
         :rtype: ``list``
         """
-        if len(kinds) == 0:
+        if not kinds:
             kinds = self.kinds
         if len(kinds) == 1:
             kind = kinds[0]
@@ -2577,18 +2582,14 @@ class Inputs(Collection):
             entities = sorted(entities, key=f)
         if kwargs.get('sort_mode', None) == 'alpha_case':
             sort_field = kwargs.get('sort_field', 'name')
-            if sort_field == 'name':
-                f = lambda x: x.name
-            else:
-                f = lambda x: x[sort_field]
+            f = (lambda x: x.name) if sort_field == 'name' else (lambda x: x[sort_field])
             entities = sorted(entities, key=f)
         if kwargs.get('sort_dir', 'asc') == 'desc':
             entities = list(reversed(entities))
         return entities
 
     def __iter__(self, **kwargs):
-        for item in self.iter(**kwargs):
-            yield item
+        yield from self.iter(**kwargs)
 
     def iter(self, **kwargs):
         """ Iterates over the collection of inputs.
@@ -2611,8 +2612,7 @@ class Inputs(Collection):
 
         :type kwargs: ``dict``
         """
-        for item in self.list(**kwargs):
-            yield item
+        yield from self.list(**kwargs)
 
     def oneshot(self, path, **kwargs):
         """ Creates a oneshot data input, which is an upload of a single file
@@ -2646,11 +2646,7 @@ class Job(Entity):
         try:
             self.post("control", action="cancel")
         except HTTPError as he:
-            if he.status == 404:
-                # The job has already been cancelled, so
-                # cancelling it twice is a nop.
-                pass
-            else:
+            if he.status != 404:
                 raise
         return self
 
@@ -2700,10 +2696,7 @@ class Job(Entity):
         :return: ``True`` if the job is done, ``False`` if not.
         :rtype: ``boolean``
         """
-        if not self.is_ready():
-            return False
-        done = (self._state.content['isDone'] == '1')
-        return done
+        return (self._state.content['isDone'] == '1') if self.is_ready() else False
 
     def is_ready(self):
         """Indicates whether this job is ready for querying.
@@ -2716,8 +2709,7 @@ class Job(Entity):
         if response.status == 204:
             return False
         self._state = self.read(response)
-        ready = self._state.content['dispatchState'] not in ['QUEUED', 'PARSING']
-        return ready
+        return self._state.content['dispatchState'] not in ['QUEUED', 'PARSING']
 
     @property
     def name(self):
@@ -3090,17 +3082,11 @@ class ModularInputKind(Entity):
     """
     def __contains__(self, name):
         args = self.state.content['endpoints']['args']
-        if name in args:
-            return True
-        else:
-            return Entity.__contains__(self, name)
+        return True if name in args else Entity.__contains__(self, name)
 
     def __getitem__(self, name):
         args = self.state.content['endpoint']['args']
-        if name in args:
-            return args['item']
-        else:
-            return Entity.__getitem__(self, name)
+        return args['item'] if name in args else Entity.__getitem__(self, name)
 
     @property
     def arguments(self):
@@ -3172,14 +3158,16 @@ class SavedSearch(Entity):
         """
         if self['is_scheduled'] == '0':
             raise IllegalOperationException('Unscheduled saved searches have no alerts.')
-        c = Collection(
+        return Collection(
             self.service,
-            self.service._abspath(PATH_FIRED_ALERTS + self.name,
-                                  owner=self._state.access.owner,
-                                  app=self._state.access.app,
-                                  sharing=self._state.access.sharing),
-            item=AlertGroup)
-        return c
+            self.service._abspath(
+                PATH_FIRED_ALERTS + self.name,
+                owner=self._state.access.owner,
+                app=self._state.access.app,
+                sharing=self._state.access.sharing,
+            ),
+            item=AlertGroup,
+        )
 
     def history(self):
         """Returns a list of search jobs corresponding to this saved search.
@@ -3236,9 +3224,9 @@ class SavedSearch(Entity):
                             latest_time=latest_time)
         data = self._load_atom_entry(response)
         rec = _parse_atom_entry(data)
-        times = [datetime.fromtimestamp(int(t))
-                 for t in rec.content.scheduled_times]
-        return times
+        return [
+            datetime.fromtimestamp(int(t)) for t in rec.content.scheduled_times
+        ]
 
     def suppress(self, expiration):
         """Skips any scheduled runs of this search in the next *expiration*
@@ -3261,10 +3249,7 @@ class SavedSearch(Entity):
         :rtype: ``integer``
         """
         r = self._run_action("suppress")
-        if r.suppressed == "1":
-            return int(r.expiration)
-        else:
-            return 0
+        return int(r.expiration) if r.suppressed == "1" else 0
 
     def unsuppress(self):
         """Cancels suppression and makes this search run as scheduled.
@@ -3379,7 +3364,7 @@ class Users(Collection):
             hilda = users.create("hilda", "anotherpassword", roles=["user","power"])
         """
         if not isinstance(username, six.string_types):
-            raise ValueError("Invalid username: %s" % str(username))
+            raise ValueError(f"Invalid username: {str(username)}")
         username = username.lower()
         self.post(name=username, password=password, roles=roles, **params)
         # splunkd doesn't return the user in the POST response body,
@@ -3387,11 +3372,9 @@ class Users(Collection):
         response = self.get(username)
         entry = _load_atom(response, XNAME_ENTRY).entry
         state = _parse_atom_entry(entry)
-        entity = self.item(
-            self.service,
-            urllib.parse.unquote(state.links.alternate),
-            state=state)
-        return entity
+        return self.item(
+            self.service, urllib.parse.unquote(state.links.alternate), state=state
+        )
 
     def delete(self, name):
         """ Deletes the user and returns the resulting collection of users.
@@ -3454,11 +3437,11 @@ class Role(Entity):
             if capability not in possible_capabilities:
                 raise NoSuchCapability(capability)
         old_capabilities = self['capabilities']
-        new_capabilities = []
-        for c in old_capabilities:
-            if c not in capabilities_to_revoke:
-                new_capabilities.append(c)
-        if new_capabilities == []:
+        new_capabilities = [
+            c for c in old_capabilities if c not in capabilities_to_revoke
+        ]
+
+        if not new_capabilities:
             new_capabilities = '' # Empty lists don't get passed in the body, so we have to force an empty argument.
         self.post(capabilities=new_capabilities)
         return self
@@ -3502,7 +3485,7 @@ class Roles(Collection):
             paltry = roles.create("paltry", imported_roles="user", defaultApp="search")
         """
         if not isinstance(name, six.string_types):
-            raise ValueError("Invalid role name: %s" % str(name))
+            raise ValueError(f"Invalid role name: {str(name)}")
         name = name.lower()
         self.post(name=name, **params)
         # splunkd doesn't return the user in the POST response body,
@@ -3510,11 +3493,9 @@ class Roles(Collection):
         response = self.get(name)
         entry = _load_atom(response, XNAME_ENTRY).entry
         state = _parse_atom_entry(entry)
-        entity = self.item(
-            self.service,
-            urllib.parse.unquote(state.links.alternate),
-            state=state)
-        return entity
+        return self.item(
+            self.service, urllib.parse.unquote(state.links.alternate), state=state
+        )
 
     def delete(self, name):
         """ Deletes the role and returns the resulting collection of roles.
@@ -3566,9 +3547,9 @@ class KVStoreCollections(Collection):
         for k, v in six.iteritems(indexes):
             if isinstance(v, dict):
                 v = json.dumps(v)
-            kwargs['index.' + k] = v
+            kwargs[f'index.{k}'] = v
         for k, v in six.iteritems(fields):
-            kwargs['field.' + k] = v
+            kwargs[f'field.{k}'] = v
         return self.post(name=name, **kwargs)
 
 class KVStoreCollection(Entity):
@@ -3590,8 +3571,12 @@ class KVStoreCollection(Entity):
 
         :return: Result of POST request
         """
-        kwargs = {}
-        kwargs['index.' + name] = value if isinstance(value, basestring) else json.dumps(value)
+        kwargs = {
+            f'index.{name}': value
+            if isinstance(value, basestring)
+            else json.dumps(value)
+        }
+
         return self.post(**kwargs)
 
     def update_field(self, name, value):
@@ -3604,8 +3589,7 @@ class KVStoreCollection(Entity):
 
         :return: Result of POST request
         """
-        kwargs = {}
-        kwargs['field.' + name] = value
+        kwargs = {f'field.{name}': value}
         return self.post(**kwargs)
 
 class KVStoreCollectionData(object):
@@ -3619,7 +3603,7 @@ class KVStoreCollectionData(object):
         self.service = collection.service
         self.collection = collection
         self.owner, self.app, self.sharing = collection._proper_namespace()
-        self.path = 'storage/collections/data/' + UrlEncoded(self.collection.name) + '/'
+        self.path = f'storage/collections/data/{UrlEncoded(self.collection.name)}/'
 
     def _get(self, url, **kwargs):
         return self.service.get(self.path + url, owner=self.owner, app=self.app, sharing=self.sharing, **kwargs)
@@ -3712,7 +3696,7 @@ class KVStoreCollectionData(object):
         :return: Results of each query
         :rtype: ``array`` of ``array``
         """
-        if len(dbqueries) < 1:
+        if not dbqueries:
             raise Exception('Must have at least one query.')
 
         data = json.dumps(dbqueries)
@@ -3729,7 +3713,7 @@ class KVStoreCollectionData(object):
         :return: Results of update operation as overall stats
         :rtype: ``dict``
         """
-        if len(documents) < 1:
+        if not documents:
             raise Exception('Must have at least one document.')
 
         data = json.dumps(documents)

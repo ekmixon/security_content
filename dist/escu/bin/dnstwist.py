@@ -85,7 +85,7 @@ class DomainFuzz(object):
         if len(domain) == 2:
             return domain[0], domain[1]
 
-        return domain[0] + '.' + domain[1], domain[2]
+        return f'{domain[0]}.{domain[1]}', domain[2]
 
     def __validate_domain(self, domain):
         if len(domain) == len(domain.encode('idna')) and domain != domain.encode('idna'):
@@ -112,10 +112,10 @@ class DomainFuzz(object):
     def __bitsquatting(self):
         result = []
         masks = [1, 2, 4, 8, 16, 32, 64, 128]
-        for i in range(0, len(self.domain)):
+        for i in range(len(self.domain)):
             c = self.domain[i]
-            for j in range(0, len(masks)):
-                b = chr(ord(c) ^ masks[j])
+            for mask in masks:
+                b = chr(ord(c) ^ mask)
                 o = ord(b)
                 if (o >= 48 and o <= 57) or (o >= 97 and o <= 122) or o == 45:
                     result.append(self.domain[:i] + b + self.domain[i+1:])
@@ -154,8 +154,8 @@ class DomainFuzz(object):
 
         result = []
 
-        for ws in range(0, len(self.domain)):
-            for i in range(0, (len(self.domain)-ws)+1):
+        for ws in range(len(self.domain)):
+            for i in range((len(self.domain)-ws)+1):
                 win = self.domain[i:i+ws]
 
                 j = 0
@@ -172,12 +172,10 @@ class DomainFuzz(object):
         return list(set(result))
 
     def __hyphenation(self):
-        result = []
-
-        for i in range(1, len(self.domain)):
-            result.append(self.domain[:i] + '-' + self.domain[i:])
-
-        return result
+        return [
+            f'{self.domain[:i]}-{self.domain[i:]}'
+            for i in range(1, len(self.domain))
+        ]
 
     def __insertion(self):
         result = []
@@ -186,16 +184,23 @@ class DomainFuzz(object):
             for keys in self.keyboards:
                 if self.domain[i] in keys:
                     for c in keys[self.domain[i]]:
-                        result.append(self.domain[:i] + c + self.domain[i] + self.domain[i+1:])
-                        result.append(self.domain[:i] + self.domain[i] + c + self.domain[i+1:])
+                        result.extend(
+                            (
+                                self.domain[:i]
+                                + c
+                                + self.domain[i]
+                                + self.domain[i + 1 :],
+                                self.domain[:i]
+                                + self.domain[i]
+                                + c
+                                + self.domain[i + 1 :],
+                            )
+                        )
 
         return list(set(result))
 
     def __omission(self):
-        result = []
-
-        for i in range(0, len(self.domain)):
-            result.append(self.domain[:i] + self.domain[i+1:])
+        result = [self.domain[:i] + self.domain[i+1:] for i in range(len(self.domain))]
 
         n = re.sub(r'(.)\1+', r'\1', self.domain)
 
@@ -205,99 +210,164 @@ class DomainFuzz(object):
         return list(set(result))
 
     def __repetition(self):
-        result = []
+        result = [
+            self.domain[:i]
+            + self.domain[i]
+            + self.domain[i]
+            + self.domain[i + 1 :]
+            for i in range(len(self.domain))
+            if self.domain[i].isalpha()
+        ]
 
-        for i in range(0, len(self.domain)):
-            if self.domain[i].isalpha():
-                result.append(self.domain[:i] + self.domain[i] + self.domain[i] + self.domain[i+1:])
 
         return list(set(result))
 
     def __replacement(self):
         result = []
 
-        for i in range(0, len(self.domain)):
+        for i in range(len(self.domain)):
             for keys in self.keyboards:
                 if self.domain[i] in keys:
-                    for c in keys[self.domain[i]]:
-                        result.append(self.domain[:i] + c + self.domain[i+1:])
+                    result.extend(
+                        self.domain[:i] + c + self.domain[i + 1 :]
+                        for c in keys[self.domain[i]]
+                    )
 
         return list(set(result))
 
     def __subdomain(self):
-        result = []
-
-        for i in range(1, len(self.domain)):
-            if self.domain[i] not in ['-', '.'] and self.domain[i-1] not in ['-', '.']:
-                result.append(self.domain[:i] + '.' + self.domain[i:])
-
-        return result
+        return [
+            f'{self.domain[:i]}.{self.domain[i:]}'
+            for i in range(1, len(self.domain))
+            if self.domain[i] not in ['-', '.']
+            and self.domain[i - 1] not in ['-', '.']
+        ]
 
     def __transposition(self):
-        result = []
-
-        for i in range(0, len(self.domain)-1):
-            if self.domain[i+1] != self.domain[i]:
-                result.append(self.domain[:i] + self.domain[i+1] + self.domain[i] + self.domain[i+2:])
-
-        return result
+        return [
+            self.domain[:i]
+            + self.domain[i + 1]
+            + self.domain[i]
+            + self.domain[i + 2 :]
+            for i in range(len(self.domain) - 1)
+            if self.domain[i + 1] != self.domain[i]
+        ]
 
     def __vowel_swap(self):
         vowels = 'aeiou'
         result = []
 
-        for i in range(0, len(self.domain)):
-            for vowel in vowels:
-                if self.domain[i] in vowels:
-                    result.append(self.domain[:i] + vowel + self.domain[i+1:])
+        for i in range(len(self.domain)):
+            result.extend(
+                self.domain[:i] + vowel + self.domain[i + 1 :]
+                for vowel in vowels
+                if self.domain[i] in vowels
+            )
 
         return list(set(result))
 
     def __addition(self):
-        result = []
-
-        for i in range(97, 123):
-            result.append(self.domain + chr(i))
-
-        return result
+        return [self.domain + chr(i) for i in range(97, 123)]
 
     def generate(self):
-        self.domains.append({'fuzzer': 'Original*', 'domain-name': self.domain + '.' + self.tld})
+        self.domains.append(
+            {'fuzzer': 'Original*', 'domain-name': f'{self.domain}.{self.tld}'}
+        )
+
 
         for domain in self.__addition():
-            self.domains.append({'fuzzer': 'Addition', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Addition', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__bitsquatting():
-            self.domains.append({'fuzzer': 'Bitsquatting', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Bitsquatting', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__homoglyph():
-            self.domains.append({'fuzzer': 'Homoglyph', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Homoglyph', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__hyphenation():
-            self.domains.append({'fuzzer': 'Hyphenation', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Hyphenation', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__insertion():
-            self.domains.append({'fuzzer': 'Insertion', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Insertion', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__omission():
-            self.domains.append({'fuzzer': 'Omission', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Omission', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__repetition():
-            self.domains.append({'fuzzer': 'Repetition', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Repetition', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__replacement():
-            self.domains.append({'fuzzer': 'Replacement', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Replacement', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__subdomain():
-            self.domains.append({'fuzzer': 'Subdomain', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Subdomain', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__transposition():
-            self.domains.append({'fuzzer': 'Transposition', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Transposition', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
         for domain in self.__vowel_swap():
-            self.domains.append({'fuzzer': 'Vowel-swap', 'domain-name': domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Vowel-swap', 'domain-name': f'{domain}.{self.tld}'}
+            )
+
 
         if not self.domain.startswith('www.'):
-            self.domains.append({'fuzzer': 'Various', 'domain-name': 'ww' + self.domain + '.' + self.tld})
-            self.domains.append({'fuzzer': 'Various', 'domain-name': 'www' + self.domain + '.' + self.tld})
-            self.domains.append({'fuzzer': 'Various', 'domain-name': 'www-' + self.domain + '.' + self.tld})
+            self.domains.append(
+                {'fuzzer': 'Various', 'domain-name': f'ww{self.domain}.{self.tld}'}
+            )
+
+            self.domains.append(
+                {
+                    'fuzzer': 'Various',
+                    'domain-name': f'www{self.domain}.{self.tld}',
+                }
+            )
+
+            self.domains.append(
+                {
+                    'fuzzer': 'Various',
+                    'domain-name': f'www-{self.domain}.{self.tld}',
+                }
+            )
+
         if '.' in self.tld:
-            self.domains.append({'fuzzer': 'Various', 'domain-name': self.domain + '.' + self.tld.split('.')[-1]})
+            self.domains.append(
+                {
+                    'fuzzer': 'Various',
+                    'domain-name': f'{self.domain}.' + self.tld.split('.')[-1],
+                }
+            )
+
             self.domains.append({'fuzzer': 'Various', 'domain-name': self.domain + self.tld})
         if '.' not in self.tld:
             self.domains.append({'fuzzer': 'Various', 'domain-name': self.domain + self.tld + '.' + self.tld})
         if self.tld != 'com' and '.' not in self.tld:
-            self.domains.append({'fuzzer': 'Various', 'domain-name': self.domain + '-' + self.tld + '.com'})
+            self.domains.append(
+                {
+                    'fuzzer': 'Various',
+                    'domain-name': f'{self.domain}-{self.tld}.com',
+                }
+            )
 
         #self.__filter_domains()
 
@@ -326,18 +396,28 @@ class DnsTwistCommand(GeneratingCommand):
         csv_file_names = []
 
         if self.populate_from_cim:
-            csv_file_names.append(make_splunkhome_path([
-                'etc',
-                'apps',
-                'Splunk_SA_CIM',
-                'lookups',
-                'cim_corporate_email_domains.csv']))
-            csv_file_names.append(make_splunkhome_path([
-                'etc',
-                'apps',
-                'Splunk_SA_CIM',
-                'lookups',
-                'cim_corporate_web_domains.csv']))
+            csv_file_names.extend(
+                (
+                    make_splunkhome_path(
+                        [
+                            'etc',
+                            'apps',
+                            'Splunk_SA_CIM',
+                            'lookups',
+                            'cim_corporate_email_domains.csv',
+                        ]
+                    ),
+                    make_splunkhome_path(
+                        [
+                            'etc',
+                            'apps',
+                            'Splunk_SA_CIM',
+                            'lookups',
+                            'cim_corporate_web_domains.csv',
+                        ]
+                    ),
+                )
+            )
 
         # Make sure we just get the base file name from file. In case there was some directory traversal going on.
         if self.domainlist_file_name:
@@ -372,9 +452,7 @@ class DnsTwistCommand(GeneratingCommand):
 
         # if a single domain is passed lets just calculate that
         if self.domain != '':
-            domains_to_twist = []
-            domains_to_twist.append(self.domain)
-
+            domains_to_twist = [self.domain]
         for domain_to_twist in domains_to_twist:
             domain_to_twist = domain_to_twist.lstrip('*')
             dfuzz = DomainFuzz(domain_to_twist)

@@ -36,9 +36,11 @@ class ValidationDefinition(object):
         self.parameters = {}
 
     def __eq__(self, other):
-        if not isinstance(other, ValidationDefinition):
-            return False
-        return self.metadata == other.metadata and self.parameters == other.parameters
+        return (
+            self.metadata == other.metadata and self.parameters == other.parameters
+            if isinstance(other, ValidationDefinition)
+            else False
+        )
 
     @staticmethod
     def parse(stream):

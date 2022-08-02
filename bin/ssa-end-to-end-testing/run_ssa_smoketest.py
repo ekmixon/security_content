@@ -41,13 +41,13 @@ def main(args):
     github_service = GithubService(branch)
     ci_changes = False
     if test_file:
-        if not os.path.isfile('security_content/tests/' + test_file):
+        if not os.path.isfile(f'security_content/tests/{test_file}'):
             LOGGER.error('Can not find specified test file')
             sys.exit(1)
-        test_files_ssa = [str("tests/" + test_file)]
+        test_files_ssa = [str(f"tests/{test_file}")]
     else:
         test_files_ssa, ci_changes = github_service.get_changed_test_files_ssa()
-    
+
     LOGGER.info('changed/added GitHub files:')
     for test_file in test_files_ssa:
         LOGGER.info(test_file)

@@ -23,19 +23,18 @@ def log(level, msg, detail=None):
 
 
 def get_detection(unit_test):
-    with open(get_path("../detections/%s" % unit_test['file'])) as detection_fh:
-        parsed_detection = yaml.safe_load(detection_fh)
-        return parsed_detection
+    with open(get_path(f"../detections/{unit_test['file']}")) as detection_fh:
+        return yaml.safe_load(detection_fh)
 
 
 def pull_data(test, destination):
-    data_desc = dict()
+    data_desc = {}
     if 'attack_data' in test:
         for d in test['attack_data']:
-            test_data = "%s/%s" % (destination, d['file_name'])
+            test_data = f"{destination}/{d['file_name']}"
             #urllib.request.urlretrieve(d['data'], test_data)
             with open(test_data, 'wb') as f:
                 f.write(get(d['data']).content)
             data_desc[d['file_name']] = test_data
-            log(logging.DEBUG, "Downloading dataset %s from %s" % (d['file_name'], d['data']))
+            log(logging.DEBUG, f"Downloading dataset {d['file_name']} from {d['data']}")
     return data_desc

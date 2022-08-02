@@ -74,7 +74,7 @@ def generate(args):
         print("ERROR: contentctl failed to find folder for deployment {0}".format(output))
         sys.exit(1)
 
-    print("contentctl is generating a new splunk_app under {}".format(output))
+    print(f"contentctl is generating a new splunk_app under {output}")
     generator.main(security_content_path, args.output, args.product, args.verbose)
 
 

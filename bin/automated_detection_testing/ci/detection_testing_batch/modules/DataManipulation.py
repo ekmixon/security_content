@@ -15,7 +15,7 @@ class DataManipulation:
         if sourcetype == 'aws:cloudtrail':
             self.manipulate_timestamp_cloudtrail(file_path)
 
-        if source == 'WinEventLog:System' or source == 'WinEventLog:Security':
+        if source in ['WinEventLog:System', 'WinEventLog:Security']:
             self.manipulate_timestamp_windows_event_log_raw(file_path)
 
         if source == 'exchange':
@@ -23,7 +23,7 @@ class DataManipulation:
 
 
     def manipulate_timestamp_exchange_logs(self, file_path):
-        path =  os.path.join(os.path.dirname(__file__), '../' + file_path)
+        path = os.path.join(os.path.dirname(__file__), f'../{file_path}')
         path =  path.replace('modules/../','')
 
         f = io.open(path, "r", encoding="utf-8")
@@ -50,7 +50,7 @@ class DataManipulation:
 
 
     def manipulate_timestamp_windows_event_log_raw(self, file_path):
-        path =  os.path.join(os.path.dirname(__file__), '../' + file_path)
+        path = os.path.join(os.path.dirname(__file__), f'../{file_path}')
         path =  path.replace('modules/../','')
 
         f = io.open(path, "r", encoding="utf-8")
@@ -82,12 +82,12 @@ class DataManipulation:
             new_time = self.difference + event_time
             return new_time.strftime("%m/%d/%Y %I:%M:%S %p")
         except Exception as e:
-            self.logger.error("Error in timestamp replacement occured: " + str(e))
+            self.logger.error(f"Error in timestamp replacement occured: {str(e)}")
             return match.group()
 
 
     def manipulate_timestamp_cloudtrail(self, file_path):
-        path =  os.path.join(os.path.dirname(__file__), '../' + file_path)
+        path = os.path.join(os.path.dirname(__file__), f'../{file_path}')
         path =  path.replace('modules/../','')
 
         f = io.open(path, "r", encoding="utf-8")

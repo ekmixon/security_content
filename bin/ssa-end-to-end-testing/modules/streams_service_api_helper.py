@@ -4,6 +4,7 @@ data pipeline.
 API doc: https://dev.splunk.com/enterprise/reference/api/streams/v3beta1
 """
 
+
 import logging
 import os
 import uuid
@@ -21,22 +22,22 @@ from modules.utils import request_headers
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 LOGGER = logging.getLogger(__name__)
 
-TENANT_PLAYGROUND = f"research2"
-TENANT_STAGING = f"research"
-BASE_URL_PLAYGROUND = f"https://api.playground.scp.splunk.com/"
-BASE_URL_STAGING = f"https://api.staging.scs.splunk.com/"
+TENANT_PLAYGROUND = "research2"
+TENANT_STAGING = "research"
+BASE_URL_PLAYGROUND = "https://api.playground.scp.splunk.com/"
+BASE_URL_STAGING = "https://api.staging.scs.splunk.com/"
 
 # Streaming Pipelines REST endpoints
-CONNECTIONS_ENDPOINT = f"streams/v3beta1/connections"
-PIPELINES_ENDPOINT = f"streams/v3beta1/pipelines"
-PIPELINES_COMPILE_ENDPOINT = f"streams/v3beta1/pipelines/compile"
-PIPELINES_VALIDATE_ENDPOINT = f"streams/v3beta1/pipelines/validate"
-PIPELINES_REGISTRY_ENDPOINT = f"streams/v3beta1/pipelines/registry"
-PREVIEW_SESSION_ENDPOINT = f"streams/v3beta1/preview-session"
-PREVIEW_DATA_ENDPOINT = f"streams/v3beta1/preview-data"
-INGEST_ENDPOINT = f"ingest/v1beta2/events"
-SUBMIT_SEARCH_ENDPOINT = f"search/v2beta1/jobs"
-DATASETS_ENDPOINT = f"catalog/v2beta1/datasets"
+CONNECTIONS_ENDPOINT = "streams/v3beta1/connections"
+PIPELINES_ENDPOINT = "streams/v3beta1/pipelines"
+PIPELINES_COMPILE_ENDPOINT = "streams/v3beta1/pipelines/compile"
+PIPELINES_VALIDATE_ENDPOINT = "streams/v3beta1/pipelines/validate"
+PIPELINES_REGISTRY_ENDPOINT = "streams/v3beta1/pipelines/registry"
+PREVIEW_SESSION_ENDPOINT = "streams/v3beta1/preview-session"
+PREVIEW_DATA_ENDPOINT = "streams/v3beta1/preview-data"
+INGEST_ENDPOINT = "ingest/v1beta2/events"
+SUBMIT_SEARCH_ENDPOINT = "search/v2beta1/jobs"
+DATASETS_ENDPOINT = "catalog/v2beta1/datasets"
 
 
 class ApiError(Exception):
@@ -64,7 +65,7 @@ class DSPApi:
             LOGGER.info(f"token.payload.{k} = %s", payload_data[k])
 
         valid_for = payload_data['exp'] - int(time.time())
-        if not valid_for > 0:
+        if valid_for <= 0:
             raise ApiError("Token is expired")
 
         token_env = payload_data['iss'].split('.')[-4]
@@ -97,12 +98,12 @@ class DSPApi:
             JSON representation of the compiled AST
         """
         data = {"spl": spl}
-        LOGGER.debug(f"Compiling SPL into UPL")
+        LOGGER.debug("Compiling SPL into UPL")
         #LOGGER.info(f"{spl}")
         response = requests.post(self.return_api_endpoint(PIPELINES_COMPILE_ENDPOINT), json=data, headers=request_headers(self.header_token))
         upl = response.json()
         if response.status_code == HTTPStatus.OK:
-            LOGGER.info(f"Successfully compiled spl to upl")
+            LOGGER.info("Successfully compiled spl to upl")
             return upl
         else:
             LOGGER.error("SPL compilation failed: %s", response.text)
@@ -127,7 +128,7 @@ class DSPApi:
         response = requests.post(self.return_api_endpoint(PIPELINES_VALIDATE_ENDPOINT), json=data, headers=headers)
 
         if response.status_code == HTTPStatus.OK:
-            LOGGER.info(f"UPL is validated.")
+            LOGGER.info("UPL is validated.")
             return upl
         else:
             LOGGER.error("UPL validation failed: %s", response.text)
@@ -147,7 +148,7 @@ class DSPApi:
         if response.status_code == HTTPStatus.OK:
             return response_body.get('items')
         else:
-            LOGGER.error(f"Failed to get pipelines: %s", response.text)
+            LOGGER.error("Failed to get pipelines: %s", response.text)
 
 
     def create_pipeline(self, upl):
@@ -178,11 +179,10 @@ class DSPApi:
         response = requests.post(self.return_api_endpoint(PIPELINES_ENDPOINT), json=data, headers=headers)
         response_body = response.json()
         if response.status_code == HTTPStatus.CREATED:
-            pipeline_id = response_body.get("id")
             #LOGGER.info(f"Pipeline {pipeline_id} successfully created")
-            return pipeline_id
+            return response_body.get("id")
         else:
-            LOGGER.error(f"Failed to create pipeline: %s", response.text)
+            LOGGER.error("Failed to create pipeline: %s", response.text)
 
 
     def create_pipeline_from_spl(self, spl):
@@ -215,8 +215,12 @@ class DSPApi:
         assert(pipeline_id is not None), "Must specify a 'pipeline_id'"
 
         headers = {"Content-Type": "application/json", "Authorization": self.header_token}
-        pipelines_activate_endpoint = self.return_api_endpoint(PIPELINES_ENDPOINT) + "/" + pipeline_id + "/activate"
-        pipelines_status_endpoint = self.return_api_endpoint(PIPELINES_ENDPOINT) + "/" + pipeline_id
+        pipelines_activate_endpoint = f"{self.return_api_endpoint(PIPELINES_ENDPOINT)}/{pipeline_id}/activate"
+
+        pipelines_status_endpoint = (
+            f"{self.return_api_endpoint(PIPELINES_ENDPOINT)}/{pipeline_id}"
+        )
+
 
         data = {
             "activateLatestVersion": "true",
@@ -225,11 +229,11 @@ class DSPApi:
         }
 
         pipeline_activated = False
-        attempts_remaining = 30
-
         response = requests.post(pipelines_activate_endpoint, json=data, headers=headers)
 
         if response.status_code == HTTPStatus.OK:
+            attempts_remaining = 30
+
             while attempts_remaining:
                 attempts_remaining -= 1
                 pipeline_status_response = requests.get(pipelines_status_endpoint, headers=headers)
@@ -273,7 +277,8 @@ class DSPApi:
         assert(pipeline_id is not None), "Must specify a 'pipeline_id'"
 
         headers = {"Content-Type": "application/json", "Authorization": self.header_token}
-        pipelines_deactivate_endpoint = self.return_api_endpoint(PIPELINES_ENDPOINT) + "/" + pipeline_id + "/deactivate"
+        pipelines_deactivate_endpoint = f"{self.return_api_endpoint(PIPELINES_ENDPOINT)}/{pipeline_id}/deactivate"
+
 
         data = {
             "skipSavepoint": "true"
@@ -300,7 +305,10 @@ class DSPApi:
         assert(pipeline_id is not None), "Must specify a 'pipeline_id'"
 
         headers = {"Content-Type": "application/json", "Authorization": self.header_token}
-        delete_pipeline_endpoint = self.return_api_endpoint(PIPELINES_ENDPOINT) + "/" + pipeline_id
+        delete_pipeline_endpoint = (
+            f"{self.return_api_endpoint(PIPELINES_ENDPOINT)}/{pipeline_id}"
+        )
+
         response = requests.delete(delete_pipeline_endpoint, headers=headers)
         LOGGER.info(f"DELETE pipeline response status code is: {response.status_code}")
         return response
@@ -322,16 +330,17 @@ class DSPApi:
         assert(pipeline_id is not None), "Must specify a 'pipeline_id'"
 
         headers = {"Content-Type": "application/json", "Authorization": self.header_token}
-        pipelines_status_endpoint = self.return_api_endpoint(PIPELINES_ENDPOINT) + "/" + pipeline_id
+        pipelines_status_endpoint = (
+            f"{self.return_api_endpoint(PIPELINES_ENDPOINT)}/{pipeline_id}"
+        )
+
 
         response = requests.get(pipelines_status_endpoint, headers=headers)
         response_body = response.json()
         if response.status_code == HTTPStatus.OK:
-            pipeline_status = response_body.get("status")
-            return pipeline_status
-        else:
-            LOGGER.error(f"Fail to get current status of pipeline pipeline {pipeline_id}")
-            return
+            return response_body.get("status")
+        LOGGER.error(f"Fail to get current status of pipeline pipeline {pipeline_id}")
+        return
 
 
     def get_preview_id(self, upl):
@@ -380,17 +389,21 @@ class DSPApi:
         assert(preview_id is not None), "Must specify a 'preview_id'"
 
         headers = {"Content-Type": "application/json", "Authorization": self.header_token}
-        preview_data_endpoint = self.return_api_endpoint(PREVIEW_DATA_ENDPOINT) + "/" + str(preview_id)
+        preview_data_endpoint = (
+            f"{self.return_api_endpoint(PREVIEW_DATA_ENDPOINT)}/{str(preview_id)}"
+        )
+
 
         response = requests.get(preview_data_endpoint, headers=headers)
         response_body = response.json()
 
-        if response.status_code != HTTPStatus.OK:
-            LOGGER.error(f"Failed to preview data from the pipeline. Please check if the operator has been properly "
-                         f"uploaded to DSP.")
-            return
-        else:
+        if response.status_code == HTTPStatus.OK:
             return response, response_body
+        LOGGER.error(
+            'Failed to preview data from the pipeline. Please check if the operator has been properly uploaded to DSP.'
+        )
+
+        return
 
 
     def stop_preview_session(self, preview_id):
@@ -409,7 +422,8 @@ class DSPApi:
 
         assert(preview_id is not None), "Must specify a 'preview_id'"
         headers = {"Content-Type": "application/json", "Authorization": self.header_token}
-        stop_preview_session_endpoint = self.return_api_endpoint(PREVIEW_SESSION_ENDPOINT) + "/" + str(preview_id)
+        stop_preview_session_endpoint = f"{self.return_api_endpoint(PREVIEW_SESSION_ENDPOINT)}/{str(preview_id)}"
+
         response = requests.delete(stop_preview_session_endpoint, headers=headers)
         LOGGER.info(f"DELETE/preview-session response status code is: {response.status_code}")
         return response
@@ -449,7 +463,7 @@ class DSPApi:
             } for event in data]
         response = requests.post(self.return_api_endpoint(INGEST_ENDPOINT), json=data, headers=request_headers(self.header_token))
         if response.status_code != HTTPStatus.OK:
-            LOGGER.error(f"Failed to upload data: %s", response.text)
+            LOGGER.error("Failed to upload data: %s", response.text)
             return False
 
         return True
@@ -475,10 +489,10 @@ class DSPApi:
             "query": query,
             "module": module
         }
-        LOGGER.info(f"Submit Search Job")
+        LOGGER.info("Submit Search Job")
         response = requests.post(self.return_api_endpoint(SUBMIT_SEARCH_ENDPOINT), json=data, headers=request_headers(self.header_token))
         if response.status_code != HTTPStatus.CREATED:
-            LOGGER.error(f"Submit search job failed: %s", response.text)
+            LOGGER.error("Submit search job failed: %s", response.text)
             return None
         else:
             response_body = response.json()
@@ -499,19 +513,19 @@ class DSPApi:
         response
             boolean true or false
         """  
-        LOGGER.info(f"Check Search job results")
-        results_check_search_job = self.return_api_endpoint(SUBMIT_SEARCH_ENDPOINT) + "/" + sid
+        LOGGER.info("Check Search job results")
+        results_check_search_job = (
+            f"{self.return_api_endpoint(SUBMIT_SEARCH_ENDPOINT)}/{sid}"
+        )
+
         response = requests.get(results_check_search_job, headers=request_headers(self.header_token))
         if response.status_code != HTTPStatus.OK:
-            LOGGER.error(f"Failed to get status of search job")
+            LOGGER.error("Failed to get status of search job")
             return None
         else:
             response_json = response.json()
-            LOGGER.info(f"Check if search is finished.")
-            if response_json.get("status") == "done":
-                return True
-            else:
-                return False
+            LOGGER.info("Check if search is finished.")
+            return response_json.get("status") == "done"
 
 
     def get_search_job_results(self, sid):
@@ -529,11 +543,14 @@ class DSPApi:
             results of search
         """
 
-        LOGGER.info(f"Get Search job results")
-        results_search_job_endpoint = self.return_api_endpoint(SUBMIT_SEARCH_ENDPOINT) + "/" + sid + "/results"
+        LOGGER.info("Get Search job results")
+        results_search_job_endpoint = (
+            f"{self.return_api_endpoint(SUBMIT_SEARCH_ENDPOINT)}/{sid}/results"
+        )
+
         response = requests.get(results_search_job_endpoint, headers=request_headers(self.header_token))
         if response.status_code != HTTPStatus.OK:
-            LOGGER.error(f"Failed to get search results")
+            LOGGER.error("Failed to get search results")
             return None
         else:
             response_body = response.json()
@@ -571,7 +588,7 @@ class DSPApi:
         @return:
             response status code from API
         """
-        LOGGER.info(f"Delete Temp Index")
+        LOGGER.info("Delete Temp Index")
         datasets_endpoint_api = self.return_api_endpoint(DATASETS_ENDPOINT)
         delete_url = f"{datasets_endpoint_api}/{index_id}"
         response = requests.delete(delete_url, headers=request_headers(self.header_token))

@@ -12,10 +12,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 # Macros
-PULSAR_SOURCE_CONNECTION_ID_PLAYGROUND = f"29fb61f1-9342-48f5-9793-1afa008c377b"
-PULSAR_SOURCE_TOPIC_PLAYGROUND = f"persistent://ssa/egress/decorated-events-research2"
-PULSAR_SOURCE_CONNECTION_ID_STAGING = f"d156ed3a-1254-469a-bffc-9dd6eda97ac6"
-PULSAR_SOURCE_TOPIC_STAGING = f"persistent://ssa/egress/decorated-events-research"
+PULSAR_SOURCE_CONNECTION_ID_PLAYGROUND = "29fb61f1-9342-48f5-9793-1afa008c377b"
+PULSAR_SOURCE_TOPIC_PLAYGROUND = (
+    "persistent://ssa/egress/decorated-events-research2"
+)
+
+PULSAR_SOURCE_CONNECTION_ID_STAGING = "d156ed3a-1254-469a-bffc-9dd6eda97ac6"
+PULSAR_SOURCE_TOPIC_STAGING = (
+    "persistent://ssa/egress/decorated-events-research"
+)
+
 
 READ_SSA_ENRICHED_EVENTS_EXPANDED = (
     f"pulsar(\"__PULSAR_SOURCE_CONNECTION_ID__\", \"__PULSAR_SOURCE_TOPIC__\")"
@@ -69,13 +75,11 @@ def fetch_token(file):
 
 
 def request_headers(header_token):
-    headers = {"Content-Type": "application/json", "Authorization": header_token}
-    return headers
+    return {"Content-Type": "application/json", "Authorization": header_token}
 
 
 def check_source_sink(spl):
-    match_sink = re.search(r"\|\s*into\s+write_ssa_detected_events\(\s*\)\s*;", spl)
-    return match_sink
+    return re.search(r"\|\s*into\s+write_ssa_detected_events\(\s*\)\s*;", spl)
 
 
 def manipulate_spl(env, spl, results_index):
@@ -99,8 +103,7 @@ def manipulate_spl(env, spl, results_index):
 
 def read_spl(file_path, file_name):
     full_path = os.path.join(file_path, file_name)
-    spl = open(full_path, "r").read()
-    return spl
+    return open(full_path, "r").read()
 
 
 def replace_ssa_macros(source, sink, spl):

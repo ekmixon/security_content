@@ -24,9 +24,7 @@ def main(args):
     args = parser.parse_args()
     branch = args.branch
     uuid_test = args.uuid
-    pr_number = args.pr_number
-
-    if pr_number:
+    if pr_number := args.pr_number:
         github_service = GithubService(branch, pr_number)
     else:
         github_service = GithubService(branch)

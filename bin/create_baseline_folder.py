@@ -8,11 +8,8 @@ import sys
 
 
 def load_objects(file_path, REPO_PATH):
-    files = []
     manifest_files = path.join(path.expanduser(REPO_PATH), file_path)
-    for file in sorted(glob.glob(manifest_files)):
-        files.append(load_file(file))
-    return files
+    return [load_file(file) for file in sorted(glob.glob(manifest_files))]
 
 
 def load_file(file_path):
@@ -43,9 +40,8 @@ def main(args):
     for detection in detections:
         if detection['type'] == 'Baseline':
             baseline_file_name =  detection['name'].replace(' ', '_').replace('-','_').replace('.','_').replace('/','_').lower()
-            file = open("baselines/" + baseline_file_name + ".yml", "w")
-            yaml.dump(detection, file)
-            file.close()
+            with open(f"baselines/{baseline_file_name}.yml", "w") as file:
+                yaml.dump(detection, file)
 
 
 if __name__ == "__main__":

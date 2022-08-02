@@ -7,21 +7,20 @@ import re
 
 def parse_data_models_from_search(search):
     match = re.search(r'from\sdatamodel\s?=\s?([^\s.]*)', search)
-    if match is not None:
-        return match.group(1)
-    return False
+    return match[1] if match is not None else False
 
 def pretty_yaml_detections(REPO_PATH, VERBOSE, content_part):
     manifest_files = []
     types = ["endpoint", "application", "cloud", "deprecated", "experimental", "network", "web"]
     for t in types:
-        for root, dirs, files in walk(REPO_PATH + "/" + content_part + '/' + t):
-            for file in files:
-                if file.endswith(".yml"):
-                    manifest_files.append((path.join(root, file)))
+        for root, dirs, files in walk(f"{REPO_PATH}/{content_part}/{t}"):
+            manifest_files.extend(
+                path.join(root, file)
+                for file in files
+                if file.endswith(".yml")
+            )
 
     for manifest_file in manifest_files:
-        pretty_yaml = dict()
         if VERBOSE:
             print("processing manifest {0}".format(manifest_file))
 
@@ -34,26 +33,25 @@ def pretty_yaml_detections(REPO_PATH, VERBOSE, content_part):
                 error = True
                 continue
 
-        pretty_yaml['name'] = object['name']
-        pretty_yaml['id'] = object['id']
-        pretty_yaml['version'] = object['version']
-        pretty_yaml['date'] = object['date']
-        pretty_yaml['author'] = object['author']
-        pretty_yaml['type'] = object['type']
-        pretty_yaml['datamodel'] = object['datamodel']
-        pretty_yaml['description'] = object['description']
-        pretty_yaml['search'] = object['search']
-        if 'how_to_implement' in object:
-            pretty_yaml['how_to_implement'] = object['how_to_implement']
-        else:
-            pretty_yaml['how_to_implement'] = ''
-        pretty_yaml['known_false_positives'] = object['known_false_positives']
-        if 'references' in object:
-            pretty_yaml['references'] = object['references']
-        else:
-            pretty_yaml['references'] = []
-        pretty_yaml['tags'] = {key: value for key, value in sorted(object['tags'].items())}
-
+        pretty_yaml = {
+            'name': object['name'],
+            'id': object['id'],
+            'version': object['version'],
+            'date': object['date'],
+            'author': object['author'],
+            'type': object['type'],
+            'datamodel': object['datamodel'],
+            'description': object['description'],
+            'search': object['search'],
+            'how_to_implement': object['how_to_implement']
+            if 'how_to_implement' in object
+            else '',
+            'known_false_positives': object['known_false_positives'],
+            'references': object['references']
+            if 'references' in object
+            else [],
+            'tags': dict(sorted(object['tags'].items())),
+        }
 
         with open(manifest_file, 'w') as file:
             documents = yaml.dump(pretty_yaml, file, sort_keys=False)
@@ -62,13 +60,12 @@ def pretty_yaml_detections(REPO_PATH, VERBOSE, content_part):
 
 def pretty_yaml_deployments(REPO_PATH, VERBOSE, content_part):
     manifest_files = []
-    for root, dirs, files in walk(REPO_PATH + "/" + content_part + '/'):
-        for file in files:
-            if file.endswith(".yml"):
-                manifest_files.append((path.join(root, file)))
+    for root, dirs, files in walk(f"{REPO_PATH}/{content_part}/"):
+        manifest_files.extend(
+            path.join(root, file) for file in files if file.endswith(".yml")
+        )
 
     for manifest_file in manifest_files:
-        pretty_yaml = dict()
         if VERBOSE:
             print("processing manifest {0}".format(manifest_file))
 
@@ -81,15 +78,18 @@ def pretty_yaml_deployments(REPO_PATH, VERBOSE, content_part):
                 error = True
                 continue
 
-        pretty_yaml['name'] = object['name']
-        pretty_yaml['id'] = object['id']
-        pretty_yaml['date'] = object['date']
-        pretty_yaml['author'] = object['author']
-        pretty_yaml['description'] = object['description']
-        pretty_yaml['scheduling'] = object['scheduling']
+        pretty_yaml = {
+            'name': object['name'],
+            'id': object['id'],
+            'date': object['date'],
+            'author': object['author'],
+            'description': object['description'],
+            'scheduling': object['scheduling'],
+        }
+
         if 'alert_action' in object:
             pretty_yaml['alert_action'] = object['alert_action']
-        pretty_yaml['tags'] = {key: value for key, value in sorted(object['tags'].items())}
+        pretty_yaml['tags'] = dict(sorted(object['tags'].items()))
 
         with open(manifest_file, 'w') as file:
             documents = yaml.dump(pretty_yaml, file, sort_keys=False)
@@ -98,13 +98,12 @@ def pretty_yaml_deployments(REPO_PATH, VERBOSE, content_part):
 
 def pretty_yaml_stories(REPO_PATH, VERBOSE, content_part):
     manifest_files = []
-    for root, dirs, files in walk(REPO_PATH + "/" + content_part + '/'):
-        for file in files:
-            if file.endswith(".yml"):
-                manifest_files.append((path.join(root, file)))
+    for root, dirs, files in walk(f"{REPO_PATH}/{content_part}/"):
+        manifest_files.extend(
+            path.join(root, file) for file in files if file.endswith(".yml")
+        )
 
     for manifest_file in manifest_files:
-        pretty_yaml = dict()
         if VERBOSE:
             print("processing manifest {0}".format(manifest_file))
 
@@ -117,18 +116,19 @@ def pretty_yaml_stories(REPO_PATH, VERBOSE, content_part):
                 error = True
                 continue
 
-        pretty_yaml['name'] = object['name']
-        pretty_yaml['id'] = object['id']
-        pretty_yaml['version'] = object['version']
-        pretty_yaml['date'] = object['date']
-        pretty_yaml['author'] = object['author']
-        pretty_yaml['description'] = object['description']
-        pretty_yaml['narrative'] = object['narrative']
-        if 'references' in object:
-            pretty_yaml['references'] = object['references']
-        else:
-            pretty_yaml['references'] = []
-        pretty_yaml['tags'] = {key: value for key, value in sorted(object['tags'].items())}
+        pretty_yaml = {
+            'name': object['name'],
+            'id': object['id'],
+            'version': object['version'],
+            'date': object['date'],
+            'author': object['author'],
+            'description': object['description'],
+            'narrative': object['narrative'],
+            'references': object['references']
+            if 'references' in object
+            else [],
+            'tags': dict(sorted(object['tags'].items())),
+        }
 
         with open(manifest_file, 'w') as file:
             documents = yaml.dump(pretty_yaml, file, sort_keys=False)

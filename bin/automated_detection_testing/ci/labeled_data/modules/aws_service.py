@@ -11,10 +11,7 @@ def get_ar_information_from_dynamo_db(region, db_name):
             'name': 'detection-testing-attack-range'
         }
     )
-    if 'Item' in response:
-        return response['Item']
-    else:
-        return {}
+    return response['Item'] if 'Item' in response else {}
 
 
 def get_splunk_instance(region, key_name):
@@ -30,11 +27,13 @@ def get_splunk_instance(region, key_name):
     instances = []
     for reservation in response['Reservations']:
         for instance in reservation['Instances']:
-            if instance['State']['Name']!='terminated':
-                if len(instance['Tags']) > 0:
-                    tag = instance['Tags'][0]['Value']
-                    if key_name in tag:
-                        return instance
+            if (
+                instance['State']['Name'] != 'terminated'
+                and len(instance['Tags']) > 0
+            ):
+                tag = instance['Tags'][0]['Value']
+                if key_name in tag:
+                    return instance
 
     return {}
 

@@ -34,9 +34,11 @@ class InputDefinition:
         self.inputs = {}
 
     def __eq__(self, other):
-        if not isinstance(other, InputDefinition):
-            return False
-        return self.metadata == other.metadata and self.inputs == other.inputs
+        return (
+            self.metadata == other.metadata and self.inputs == other.inputs
+            if isinstance(other, InputDefinition)
+            else False
+        )
 
     @staticmethod
     def parse(stream):

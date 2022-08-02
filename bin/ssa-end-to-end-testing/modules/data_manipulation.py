@@ -36,9 +36,9 @@ class DataManipulation:
 
             result = re.sub(regex, self.replacement_function, data)
 
-            with io.open(path + ".swp", "w+", encoding='utf8') as f:
+            with io.open(f"{path}.swp", "w+", encoding='utf8') as f:
                 f.write(result)
-                return path + ".swp"
+                return f"{path}.swp"
         else:
             f.close()
             return path

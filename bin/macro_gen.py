@@ -9,7 +9,7 @@ import json
 def macro_gen(STRONTIC_PATH, REPO_PATH, VERBOSE):
 
     macros = []
-    macro = dict()
+    macro = {}
 
     with open(STRONTIC_PATH, 'r', encoding='utf-8-sig') as file:
         strontic_objects = json.load(file,strict=False)
@@ -24,16 +24,6 @@ def macro_gen(STRONTIC_PATH, REPO_PATH, VERBOSE):
 
             if VERBOSE:
                 print("generating macro: {0} with definition: {1}".format(macro['name'], macro['definition']))
-
-    #final_macros = []
-    # check for duplicate first
-    #for macro in macros:
-    #    if macro not in final_macros:
-    #        final_macros.append(macro)
-        #else:
-        #    extended_definition = ' OR Processes.process_name=' + process_object.split("-")[0] + ' OR Processes.original_file_name=' + values['meta_original_filename']
-        #    macro['definition'] = macro['definition'] + extended_definition
-            #print(macro['definition'])
 
     #print(macros)
     return len(macros)

@@ -126,8 +126,12 @@ class SearchCommand(object):
         self._records = None
 
     def __str__(self):
-        text = ' '.join(chain((type(self).name, str(self.options)), [] if self.fieldnames is None else self.fieldnames))
-        return text
+        return ' '.join(
+            chain(
+                (type(self).name, str(self.options)),
+                [] if self.fieldnames is None else self.fieldnames,
+            )
+        )
 
     # region Options
 
@@ -164,12 +168,12 @@ class SearchCommand(object):
             try:
                 level = _levelNames[value.upper()]
             except KeyError:
-                raise ValueError('Unrecognized logging level: {}'.format(value))
+                raise ValueError(f'Unrecognized logging level: {value}')
         else:
             try:
                 level = int(value)
             except ValueError:
-                raise ValueError('Unrecognized logging level: {}'.format(value))
+                raise ValueError(f'Unrecognized logging level: {value}')
         self._logger.setLevel(level)
 
     record = Option(doc='''
@@ -463,7 +467,7 @@ class SearchCommand(object):
                         value = None
                     else:
                         value = extract(source)
-                        if not (value is None or transform is None):
+                        if value is not None and transform is not None:
                             value = transform(value)
                 metadata[name] = value
 
@@ -521,7 +525,10 @@ class SearchCommand(object):
         try:
             tempfile.tempdir = self._metadata.searchinfo.dispatch_dir
         except AttributeError:
-            raise RuntimeError('{}.metadata.searchinfo.dispatch_dir is undefined'.format(self.__class__.__name__))
+            raise RuntimeError(
+                f'{self.__class__.__name__}.metadata.searchinfo.dispatch_dir is undefined'
+            )
+
 
         debug('  tempfile.tempdir=%r', tempfile.tempdir)
 
@@ -537,7 +544,10 @@ class SearchCommand(object):
             ifile.record(str(self._input_header), '\n\n')
 
         if self.show_configuration:
-            self.write_info(self.name + ' command configuration: ' + str(self._configuration))
+            self.write_info(
+                f'{self.name} command configuration: {str(self._configuration)}'
+            )
+
 
         return ifile  # wrapped, if self.record is True
 
@@ -552,9 +562,13 @@ class SearchCommand(object):
 
         # Create input/output recorders from ifile and ofile
 
-        recording = os.path.join(recordings, self.__class__.__name__ + '-' + repr(time()) + '.' + self._metadata.action)
-        ifile = Recorder(recording + '.input', ifile)
-        ofile = Recorder(recording + '.output', ofile)
+        recording = os.path.join(
+            recordings,
+            f'{self.__class__.__name__}-{repr(time())}.{self._metadata.action}',
+        )
+
+        ifile = Recorder(f'{recording}.input', ifile)
+        ofile = Recorder(f'{recording}.output', ofile)
 
         # Archive the dispatch directory--if it exists--so that it can be used as a baseline in mocks)
 
@@ -562,11 +576,18 @@ class SearchCommand(object):
 
         if dispatch_dir is not None:  # __GETINFO__ action does not include a dispatch_dir
             root_dir, base_dir = os.path.split(dispatch_dir)
-            make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
+            make_archive(
+                f'{recording}.dispatch_dir',
+                'gztar',
+                root_dir,
+                base_dir,
+                logger=self.logger,
+            )
+
 
         # Save a splunk command line because it is useful for developing tests
 
-        with open(recording + '.splunk_cmd', 'wb') as f:
+        with open(f'{recording}.splunk_cmd', 'wb') as f:
             f.write('splunk cmd python '.encode())
             f.write(os.path.basename(argv[0]).encode())
             for arg in islice(argv, 1, len(argv)):
@@ -590,8 +611,13 @@ class SearchCommand(object):
                 debug('Writing configuration settings')
 
                 ifile = self._prepare_protocol_v1(argv, ifile, ofile)
-                self._record_writer.write_record(dict(
-                    (n, ','.join(v) if isinstance(v, (list, tuple)) else v) for n, v in six.iteritems(self._configuration)))
+                self._record_writer.write_record(
+                    {
+                        n: ','.join(v) if isinstance(v, (list, tuple)) else v
+                        for n, v in six.iteritems(self._configuration)
+                    }
+                )
+
                 self.finish()
 
             elif argv[1] == '__EXECUTE__':
@@ -661,7 +687,7 @@ class SearchCommand(object):
             action = getattr(metadata, 'action', None)
 
             if action != 'getinfo':
-                raise RuntimeError('Expected getinfo action, not {}'.format(action))
+                raise RuntimeError(f'Expected getinfo action, not {action}')
 
             if len(body) > 0:
                 raise RuntimeError('Did not expect data for getinfo action')
@@ -713,13 +739,13 @@ class SearchCommand(object):
                         try:
                             option = self.options[name]
                         except KeyError:
-                            self.write_error('Unrecognized option: {}={}'.format(name, value))
+                            self.write_error(f'Unrecognized option: {name}={value}')
                             error_count += 1
                             continue
                         try:
                             option.value = value
                         except ValueError:
-                            self.write_error('Illegal value: {}={}'.format(name, value))
+                            self.write_error(f'Illegal value: {name}={value}')
                             error_count += 1
                             continue
 
@@ -727,9 +753,12 @@ class SearchCommand(object):
 
             if missing is not None:
                 if len(missing) == 1:
-                    self.write_error('A value for "{}" is required'.format(missing[0]))
+                    self.write_error(f'A value for "{missing[0]}" is required')
                 else:
-                    self.write_error('Values for these required options are missing: {}'.format(', '.join(missing)))
+                    self.write_error(
+                        f"Values for these required options are missing: {', '.join(missing)}"
+                    )
+
                 error_count += 1
 
             if error_count > 0:
@@ -756,7 +785,10 @@ class SearchCommand(object):
                 ifile.record('chunked 1.0,', six.text_type(len(metadata)), ',0\n', metadata)
 
             if self.show_configuration:
-                self.write_info(self.name + ' command configuration: ' + str(self._configuration))
+                self.write_info(
+                    f'{self.name} command configuration: {str(self._configuration)}'
+                )
+
 
             debug('  command configuration: %s', self._configuration)
 
@@ -863,7 +895,7 @@ class SearchCommand(object):
         try:
             return ifile.buffer
         except AttributeError as error:
-            raise RuntimeError('Failed to get underlying buffer: {}'.format(error))
+            raise RuntimeError(f'Failed to get underlying buffer: {error}')
 
     @staticmethod
     def _read_chunk(istream):
@@ -873,7 +905,7 @@ class SearchCommand(object):
         try:
             header = istream.readline()
         except Exception as error:
-            raise RuntimeError('Failed to read transport header: {}'.format(error))
+            raise RuntimeError(f'Failed to read transport header: {error}')
 
         if not header:
             return None
@@ -881,7 +913,7 @@ class SearchCommand(object):
         match = SearchCommand._header.match(six.ensure_str(header))
 
         if match is None:
-            raise RuntimeError('Failed to parse transport header: {}'.format(header))
+            raise RuntimeError(f'Failed to parse transport header: {header}')
 
         metadata_length, body_length = match.groups()
         metadata_length = int(metadata_length)
@@ -890,14 +922,20 @@ class SearchCommand(object):
         try:
             metadata = istream.read(metadata_length)
         except Exception as error:
-            raise RuntimeError('Failed to read metadata of length {}: {}'.format(metadata_length, error))
+            raise RuntimeError(
+                f'Failed to read metadata of length {metadata_length}: {error}'
+            )
+
 
         decoder = MetadataDecoder()
 
         try:
             metadata = decoder.decode(six.ensure_str(metadata))
         except Exception as error:
-            raise RuntimeError('Failed to parse metadata of length {}: {}'.format(metadata_length, error))
+            raise RuntimeError(
+                f'Failed to parse metadata of length {metadata_length}: {error}'
+            )
+
 
         # if body_length <= 0:
         #     return metadata, ''
@@ -907,7 +945,7 @@ class SearchCommand(object):
             if body_length > 0:
                 body = istream.read(body_length)
         except Exception as error:
-            raise RuntimeError('Failed to read body of length {}: {}'.format(body_length, error))
+            raise RuntimeError(f'Failed to read body of length {body_length}: {error}')
 
         return metadata, six.ensure_str(body)
 
@@ -926,7 +964,7 @@ class SearchCommand(object):
 
         mv_fieldnames = dict([(name, name[len('__mv_'):]) for name in fieldnames if name.startswith('__mv_')])
 
-        if len(mv_fieldnames) == 0:
+        if not mv_fieldnames:
             for values in reader:
                 yield OrderedDict(izip(fieldnames, values))
             return
@@ -953,7 +991,7 @@ class SearchCommand(object):
             metadata, body = result
             action = getattr(metadata, 'action', None)
             if action != 'execute':
-                raise RuntimeError('Expected execute action, not {}'.format(action))
+                raise RuntimeError(f'Expected execute action, not {action}')
 
             self._finished = getattr(metadata, 'finished', False)
             self._record_writer.is_flushed = False
@@ -1021,9 +1059,12 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            #text = ', '.join(imap(lambda (name, value): name + '=' + json_encode_string(unicode(value)), self.iteritems()))
-            text = ', '.join(['{}={}'.format(name, json_encode_string(six.text_type(value))) for (name, value) in six.iteritems(self)])
-            return text
+            return ', '.join(
+                [
+                    f'{name}={json_encode_string(six.text_type(value))}'
+                    for (name, value) in six.iteritems(self)
+                ]
+            )
 
         # region Methods
 

@@ -17,13 +17,15 @@ class GithubService:
 
     def __init__(self, security_content_branch):
         self.security_content_branch = security_content_branch
-        self.security_content_repo_obj = self.clone_project(SECURITY_CONTENT_URL, f"security_content", f"develop")
+        self.security_content_repo_obj = self.clone_project(
+            SECURITY_CONTENT_URL, "security_content", "develop"
+        )
+
         self.security_content_repo_obj.git.checkout(security_content_branch)
 
     def clone_project(self, url, project, branch):
-        LOGGER.info(f"Clone Security Content Project")
-        repo_obj = git.Repo.clone_from(url, project, branch=branch)
-        return repo_obj
+        LOGGER.info("Clone Security Content Project")
+        return git.Repo.clone_from(url, project, branch=branch)
 
     def get_test_files(self):
         path = 'security_content/tests/endpoint'

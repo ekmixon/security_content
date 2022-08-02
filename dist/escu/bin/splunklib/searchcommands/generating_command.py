@@ -211,10 +211,8 @@ class GeneratingCommand(SearchCommand):
         self.finish()
 
     def _execute_chunk_v2(self, process, chunk):
-        count = 0
-        for row in process:
+        for count, row in enumerate(process, start=1):
             self._record_writer.write_record(row)
-            count += 1
             if count == self._record_writer._maxresultrows:
                 self._finished = False
                 return
